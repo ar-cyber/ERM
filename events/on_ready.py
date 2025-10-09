@@ -16,7 +16,7 @@ class OnReady(commands.Cog):
         if on_ready:
             logging.info("{} has connected to gateway!".format(self.bot.user.name))
             on_ready = False
-
+    '''
     @commands.Cog.listener("on_shard_connect")
     async def on_shard_connect(self, sid: int):
         async def callback():
@@ -35,7 +35,7 @@ class OnReady(commands.Cog):
 
         # # # print('Shard connection')
         await callback()
-
+    
     @commands.Cog.listener("on_shard_disconnect")
     async def on_shard_disconnect(self, sid: int):
         async def callback():
@@ -54,7 +54,7 @@ class OnReady(commands.Cog):
 
         # # # print('Shard disconnection')
         await callback()
-
+    '''
 
 async def setup(bot):
     await bot.add_cog(OnReady(bot))
