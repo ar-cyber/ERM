@@ -141,13 +141,8 @@ class Bot(commands.AutoShardedBot):
         # Only developers of the bot on the team should have
         # full access to Jishaku commands. Hard-coded
         # IDs are a security vulnerability.
-        # Robin Note: I don't care. I'm just going to add myself here
-        if user.id == 993781395761676298:
-            return True
-        # Else fall back to the original
-        # if user.id == 1394817794427846737:
-        #     return True
-    
+        # Robin Note: FUCK JISHAKU. I'm just going to omit it from this anyway
+        
         if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol (from robin: LOL)
             return await super().is_owner(user)
         else:
