@@ -7,12 +7,13 @@ from discord.ext import commands
 class OnGuildJoin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
+    # Logging for the real deal. Not needed
+    '''
     @commands.Cog.listener("on_guild_join")
     async def on_guild_join(self, guild: discord.Guild):
         bot = self.bot
         if self.bot.environment != "CUSTOM":
-            channel = bot.get_channel(1033021466381398086)
+            # channel = bot.get_channel(1033021466381398086)
             embed = discord.Embed(title=guild.name, color=0xED4348)
             embed.description = f"""
             > **Server Membercount:** {guild.member_count}
@@ -27,7 +28,7 @@ class OnGuildJoin(commands.Cog):
                 pass
             await channel.send(embed=embed)
             logging.info("Server has been sent welcome sequence.")
-
+    '''
 
 async def setup(bot):
     await bot.add_cog(OnGuildJoin(bot))
