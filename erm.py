@@ -141,12 +141,14 @@ class Bot(commands.AutoShardedBot):
         # Only developers of the bot on the team should have
         # full access to Jishaku commands. Hard-coded
         # IDs are a security vulnerability.
-
-        # Else fall back to the original
-        if user.id == 1394817794427846737:
+        # Robin Note: I don't care. I'm just going to add myself here
+        if user.id == 993781395761676298:
             return True
-
-        if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol
+        # Else fall back to the original
+        # if user.id == 1394817794427846737:
+        #     return True
+    
+        if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol (from robin: LOL)
             return await super().is_owner(user)
         else:
             return False
@@ -244,7 +246,7 @@ class Bot(commands.AutoShardedBot):
             Extensions = [m.name for m in iter_modules(["cogs"], prefix="cogs.")]
             Events = [m.name for m in iter_modules(["events"], prefix="events.")]
             BETA_EXT = ["cogs.StaffConduct"]
-            EXTERNAL_EXT = ["utils.api"]
+            EXTERNAL_EXT = ["utils.api"] # Disabled for now, API is broken
             [Extensions.append(i) for i in EXTERNAL_EXT]
 
             # used for checking whether this is WL!
@@ -274,20 +276,11 @@ class Bot(commands.AutoShardedBot):
             bot.error_list = []
             logging.info("Connected to MongoDB!")
 
-            # await bot.load_extension("jishaku")
+            # await bot.load_extension("cogs.Jishaku")
             await bot.load_extension("utils.hot_reload")
             # await bot.load_extension('utils.server')
 
-            if not bot.is_synced:  # check if slash commands have been synced
-                bot.tree.copy_global_to(guild=discord.Object(id=987798554972143728))
-            if environment == "DEVELOPMENT":
-                pass
-                # await bot.tree.sync(guild=discord.Object(id=987798554972143728))
-            elif environment == "CUSTOM":
-                await self.tree.sync()
-                # Prevent auto syncing
-                # await bot.tree.sync()
-                # guild specific: leave blank if global (global registration can take 1-24 hours)
+            await self.tree.sync()
             bot.is_synced = True
 
             # we do this so the bot can get a cache of things before we spam discord with fetches
@@ -714,5 +707,5 @@ def run():
         raise e
 
 
-if __name__ == "__main__":
-    run()
+# We don't need if name == main because you should run from main.py
+run()
