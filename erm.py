@@ -154,7 +154,7 @@ class Bot(commands.AutoShardedBot):
         if not self.setup_status:
             # await bot.load_extension('utils.routes')
             logging.info(
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━\n\n{} is online!".format(
+                "{} is online!".format(
                     self.user.name
                 )
             )
