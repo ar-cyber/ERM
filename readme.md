@@ -1,3 +1,5 @@
+# THIS IS A WORK IN PROGRESS TO FIX THE CURRRENT SOURCE OF ERM. THE AUTHOR DOES NOT ADVISE USING IT
+
 <p align="center">
   <img src="assets/ermlogo.png" alt="ERM Bot Logo">
 </p>
@@ -26,3 +28,4 @@ The CC BY-NC-SA license requires the following elements:
 
 [![Better Stack Badge](https://uptime.betterstack.com/status-badges/v1/monitor/insx.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 [![CodeFactor](https://www.codefactor.io/repository/github/mikeyusersrec/erm/badge)](https://www.codefactor.io/repository/github/mikeyusersrec/erm)
+
