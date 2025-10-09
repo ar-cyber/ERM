@@ -142,11 +142,10 @@ class Bot(commands.AutoShardedBot):
         # full access to Jishaku commands. Hard-coded
         # IDs are a security vulnerability.
         # Robin Note: FUCK JISHAKU. I'm just going to omit it from this anyway
+
+        # If you see this then the source has been robbed and you should report it.
         
-        if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol (from robin: LOL)
-            return await super().is_owner(user)
-        else:
-            return False
+        return False
 
     async def setup_hook(self) -> None:
         self.external_http_sessions: list[aiohttp.ClientSession] = []
@@ -160,16 +159,8 @@ class Bot(commands.AutoShardedBot):
                 )
             )
             self.mongo = motor.motor_asyncio.AsyncIOMotorClient(str(mongo_url))
-            if environment == "DEVELOPMENT":
-                self.db = self.mongo["erm"]
-            elif environment == "PRODUCTION":
-                self.db = self.mongo["erm"]
-            elif environment == "ALPHA":
-                self.db = self.mongo["erm"]
-            elif environment == "CUSTOM":
-                self.db = self.mongo["erm"]
-            else:
-                raise Exception("Invalid environment")
+            self.db = self.mongo["erm"] 
+
             
 
 
