@@ -12,6 +12,7 @@ Recently, a user apart of ERM's dev team attempted to remotely shutdown ERM. The
 4. Run `python main.py` to execute the bot. 
 
 ## Extra information
-|------|------|
-|Item| Notes|
+
+| Item | Notes |
+|------|-------|
 | Error: WEATHER_SERVICE_URL not defined | Ignore this. It is not required and does not impact the bot's functionality |
