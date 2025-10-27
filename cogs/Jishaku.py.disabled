@@ -1,3 +1,7 @@
+# Please don't use this module
+#
+# It isn't useful, and has been disabled because of the lack of need. If this was needed, it would be not disabled.
+
 import discord
 import jishaku
 from discord.ext import commands
@@ -5,8 +9,6 @@ from jishaku.codeblocks import codeblock_converter, Codeblock
 from jishaku.cog import STANDARD_FEATURES, OPTIONAL_FEATURES
 from jishaku.features.baseclass import Feature
 
-OWNER = 993781395761676298
-LOGGING_CHANNEL = 1392042163189317635
 
 class CustomDebugCog(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
     """
