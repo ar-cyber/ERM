@@ -138,13 +138,7 @@ class Bot(commands.AutoShardedBot):
         await super().close()
 
     async def is_owner(self, user: discord.User):
-        # Only developers of the bot on the team should have
-        # full access to Jishaku commands. Hard-coded
-        # IDs are a security vulnerability.
-        # Robin Note: FUCK JISHAKU. I'm just going to omit it from this anyway
-
-        # If you see this then the source has been robbed and you should report it.
-        
+        # I've disabled jishaku as it's really poorly implemented so this component isn't needed. Hard-coded IDs aren't safe and I don't want to cause anymore backlash then what I'm receiving. PLEASE STOP BEING NITPICKY ON THINGS; IT IS REALLY NASTY.
         return False
 
     async def setup_hook(self) -> None:
@@ -695,3 +689,4 @@ def run():
 
 # We don't need if name == main because you should run from main.py
 run()
+
