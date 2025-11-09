@@ -109,44 +109,6 @@ class ShiftManagement:
 
         await self.shifts.db.insert_one(data)
 
-        url_var = config("BASE_API_URL")
-        panel_url_var = config("PANEL_API_URL")
-
-        async def sync_with_apis():
-            async with aiohttp.ClientSession() as session:
-                tasks = []
-
-                if url_var not in ["", None]:
-                    tasks.append(
-                        session.get(
-                            f"{url_var}/Internal/SyncStartShift/{data['_id']}",
-                            headers={"Authorization": config("INTERNAL_API_AUTH")},
-                            raise_for_status=True,
-                        )
-                    )
-
-                if panel_url_var not in ["", None]:
-                    tasks.append(
-                        session.post(
-                            f"{panel_url_var}/{guild}/SyncStartShift?ID={data['_id']}",
-                            headers={"X-Static-Token": config("PANEL_STATIC_AUTH")},
-                            raise_for_status=True,
-                        )
-                    )
-
-                if tasks:
-                    responses = await asyncio.gather(*tasks, return_exceptions=True)
-                    for response in responses:
-                        if isinstance(response, Exception):
-                            self.logger.error(f"API sync failed: {str(response)}")
-
-        try:
-            await sync_with_apis()
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Failed to sync shift start with APIs: {str(e)}")
-        except Exception as e:
-            self.logger.error(f"Unexpected error during API sync: {str(e)}")
-
         return data["_id"]
 
     async def add_time_to_shift(self, identifier: str, seconds: int):
@@ -220,3 +182,4 @@ class ShiftManagement:
         return await self.shifts.db.find_one(
             {"UserID": member.id, "EndEpoch": 0, "Guild": guild_id}
         )
+
