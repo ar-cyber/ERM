@@ -7538,7 +7538,143 @@ class ExtendedGameLogging(AssociationConfigurationView):
             f"Priority Logging Channel Set: <#{select.values[0].id}>",
         )
 
+class StaffRequestOptions(AssociationConfigurationView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="Staff Requests Channel",
+        row=0,
+        max_values=1,
+        min_values=0,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def s_r_channel(
+        self, interaction: discord.Interaction, select: discord.ui.ChannelSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"staff_requests": {}}
+        if not sett.get("game_logging", {}).get("staff_requests"):
+            sett["game_logging"]["staff_requests"] = {}
+        sett["game_logging"]["staff_requests"]["channel"] = int(select.values[0].id or 0)
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Staff Requests Channel Set: <#{select.values[0].id}>",
+        )
+
+    @discord.ui.select(
+        placeholder="Staff Requests Permission Level",
+        options=[
+            discord.SelectOption(label = "Staff Role", value = 1, description = "The staff team may use this command."),
+            discord.SelectOption(label = "Administator Role", value = 3, description="The administrators may use this command."),
+            discord.SelectOption(label = "Management Role", value = 2, description="The management team may use the command.")
+        ],
+        row=1,
+        max_values=1,
+        min_values=1,
+    )
+    async def sr_perm_level(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"stafF_requests": {}}
+        if not sett.get("game_logging", {}).get("staff_requests"):
+            sett["game_logging"]["staff_requests"] = {}
+        sett["game_logging"]["staff_requests"]["permission_level"] = int(select.values[0])
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Staff Requests Permission Level Set: <#{select.values[0].id}>",
+        )
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="Staff Requests Pinged Roles",
+        row=2,
+        min_values=0
+    )
+    async def sr_pinged_roles(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"stafF_requests": {}}
+        if not sett.get("game_logging", {}).get("staff_requests"):
+            sett["game_logging"]["staff_requests"] = {}
+        sett["game_logging"]["staff_requests"]["mentioned_roles"] = [int(role.values[0].id) for role in select]
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Staff Requests Pinged Roles Set: {" ".join(role.values[0].mention for role in select)}",
+        )
+    @discord.ui.select(
+        options=[
+            discord.SelectOption(label = f"{x}", value = x, description=f"Cooldown of {x} seconds")
+            for x in range(0, 301, 15)
+        ],
+        placeholder="Staff Requests Cooldown",
+        row=3,
+        max_values=1,
+        min_values=1
+    )
+    async def sr_cooldown(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"stafF_requests": {}}
+        if not sett.get("game_logging", {}).get("staff_requests"):
+            sett["game_logging"]["staff_requests"] = {}
+        sett["game_logging"]["staff_requests"]["cooldown"] = int(select.values[0])
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Staff Requests Cooldown Set: {select.values[0]}",
+        )
 class AntipingConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -7690,7 +7826,7 @@ class AntipingConfiguration(AssociationConfigurationView):
 class GameLoggingConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+    
     @discord.ui.select(
         placeholder="Message Logging",
         row=0,
@@ -7825,8 +7961,52 @@ class GameLoggingConfiguration(AssociationConfigurationView):
         )
         for i in select.options:
             i.default = False
+    @discord.ui.select(
+        placeholder="Staff Requests",
+        row=3,
+        options = [
+            discord.SelectOption(
+                label="Enabled",
+                value="enabled",
+                description="Staff requests are enabled.",
+            ),
+            discord.SelectOption(
+                label="Disabled",
+                value="disabled",
+                description="Staff Requests are disabled.",
+            ),
+        ]
+    )
+    async def staff_request_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
 
-    @discord.ui.button(label="More Options", row=3)
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"staff_requests": {}}
+        if not sett.get("game_logging", {}).get("staff_requests"):
+            sett["game_logging"]["staff_requests"] = {}
+
+        sett["game_logging"]["stafF_requests"]["enabled"] = bool(
+            select.values[0] == "enabled"
+        )
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Staff Requests {select.values[0]}",
+        )
+        for i in select.options:
+            i.default = False
+    @discord.ui.button(label="More Options", row=4)
     async def more_options(
         self, interaction: discord.Interaction, button: discord.Button
     ):
@@ -7871,6 +8051,56 @@ class GameLoggingConfiguration(AssociationConfigurationView):
                         )
                     ],
                 ),
+            ],
+        )
+        await interaction.response.send_message(view=new_view, ephemeral=True)
+    @discord.ui.button(label="Staff Requests Options", row=4)
+    async def sr_more_options(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        val = await self.interaction_check(interaction)
+        if val is False:
+            return
+        sett = await self.bot.settings.find_by_id(interaction.guild.id)
+        new_view = StaffRequestOptions(
+            self.bot,
+            interaction.user.id,
+            [
+                (
+                    "Staff Requests Channel",
+                    [
+                        discord.utils.get(
+                            interaction.guild.channels,
+                            id=sett.get("game_logging", {})
+                            .get("staff_requests", {})
+                            .get("channel", 0),
+                        )
+                    ],
+                ),
+                (
+                    "Staff Requests Permission Level",
+                    [
+                        sett.get("game_logging", {})
+                            .get("staff_requests", {})
+                            .get("permission_level", 3),
+                        
+                    ],
+                ),
+                (
+                    "Staff Requests Pinged Roles",
+                    [
+                        discord.utils.get(interaction.guild.roles, id=role)
+                        for role in sett["game_logging"]["staff_requests"].get("mentioned_roles")
+                    ],
+                ),
+                (
+                    "Staff Requests Cooldown",
+                    [
+                        sett.get("game_logging", {})
+                            .get("staff_requests", {})
+                            .get("cooldown", 300),
+                    ]
+                )
             ],
         )
         await interaction.response.send_message(view=new_view, ephemeral=True)

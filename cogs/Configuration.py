@@ -827,6 +827,20 @@ class Configuration(commands.Cog):
                         ),
                     ],
                 ),
+                (
+                    "Staff Requests",
+                    [
+                        ["CUSTOM_CONF", {"_FIND_BY_LABEL": True}],
+                        (
+                            "Enabled"
+                            if settings.get("game_logging", {})
+                            .get("staff_requests", {})
+                            .get("enabled", None)
+                            is True
+                            else "Disabled"
+                        ),
+                    ],
+                ),
             ],
         )
 
@@ -1080,7 +1094,13 @@ class Configuration(commands.Cog):
                         "**STS Logging Channel:** This is where the event logs for Shoulder-to-Shoulder events will appear. Management members will be able to see all relevant information of an STS here.\n\n"
                         "### Priority Logging\n\n"
                         "**Enabled:** This section of the Game Logging module, correspondingly named the Priority Logging part, allows for staff members to log Priority Timer events, their reason, duration, as well as any notable information which may be necessary for management members.\n\n"
-                        "**Priority Logging Channel:** This channel will be where priority timer events and event notifications will be logged accordingly for management members to view."
+                        "**Priority Logging Channel:** This channel will be where priority timer events and event notifications will be logged accordingly for management members to view.\n\n"
+                        "### Staff Requests\n\n"
+                        "**Enabled:** This shows if the staff requesting mechanic should be available.\n\n"
+                        "**Staff Requests Channel:** This channel will be where staff requests are sent.\n\n"
+                        "**Staff Requests Permission Level:** This will be the required ranking in order to request staff (either Staff Role, Administrator Role, or Management Role)\n\n"
+                        "**Staff Requests Pinged Roles:** This will be the roles pinged when a staff request is initiated.\n\n"
+                        "**Staff Requests Cooldown:** This will be the cooldown between staff requests."
                     ),
                 ),
                 discord.Embed(
