@@ -23,48 +23,7 @@ class OnShiftEnd(commands.Cog):
             return
         shift: ShiftItem = await self.bot.shift_management.fetch_shift(object_id)
 
-        url_var = config("BASE_API_URL")
-        panel_url_var = config("PANEL_API_URL")
-
-        guild_id = document["Guild"]
         
-        async def sync_end_with_apis():
-            async with aiohttp.ClientSession() as session:
-                tasks = []
-
-                if url_var not in ["", None]:
-                    tasks.append(
-                        session.get(
-                            f"{url_var}/Internal/SyncEndShift/{document['UserID']}/{guild_id}",
-                            headers={"Authorization": config("INTERNAL_API_AUTH")},
-                            raise_for_status=True,
-                        )
-                    )
-
-                if panel_url_var not in ["", None]:
-                    tasks.append(
-                        session.delete(
-                            f"{panel_url_var}/{guild_id}/SyncEndShift?ID={document['_id']}",
-                            headers={"X-Static-Token": config("PANEL_STATIC_AUTH")},
-                            raise_for_status=True,
-                        )
-                    )
-
-                if tasks:
-                    responses = await asyncio.gather(*tasks, return_exceptions=True)
-                    for response in responses:
-                        if isinstance(response, Exception):
-                            self.logger.error(
-                                f"End shift API sync failed: {str(response)}"
-                            )
-
-        try:
-            await sync_end_with_apis()
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Failed to sync shift end with APIs: {str(e)}")
-        except Exception as e:
-            self.logger.error(f"Unexpected error during end shift API sync: {str(e)}")
-
         guild: discord.Guild = self.bot.get_guild(shift.guild)
         if guild is None:
             return
