@@ -1,3 +1,5 @@
+# DO NOT RUN ANY PREVIOUS VERSIONS OF THIS SCRIPT. THERE HAVE BEEN SECURITY VULNERABILITES PATCHED THAT COULD ALLOW BAD ACTORS INTO YOUR COMPUTER.
+
 # ERM
 This is a copy of ERM's source for anyone to self host it during the ERM outage
 
@@ -11,8 +13,18 @@ Recently, a user apart of ERM's dev team attempted to remotely shutdown ERM. The
 3.1. Please ensure that **ALL** the intents are enabled for the bot or it will not run.
 4. Run `python main.py` to execute the bot. 
 
+
+## Patched items:
+1. The Authorization and User-Agent headers were removed due to the bot failing to read API keys if they were on
+2. Fixed the unavailability of autocomplete in `/punish`
+3. Fixed the issues with `/duty manage` where the embed would not update, and roles would not be assigned.
+4. Allowed global sync regardless of what environment
+5. Disabled Jishaku (DO NOT RE-ENABLE IT)
+
+
 ## Extra information
 
 | Item | Notes |
 |------|-------|
 | Error: WEATHER_SERVICE_URL not defined | Ignore this. It is not required and does not impact the bot's functionality |
+
