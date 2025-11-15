@@ -20,6 +20,7 @@ Recently, a user apart of ERM's dev team attempted to remotely shutdown ERM. The
 3. Fixed the issues with `/duty manage` where the embed would not update, and roles would not be assigned.
 4. Allowed global sync regardless of what environment
 5. Disabled Jishaku (DO NOT RE-ENABLE IT)
+6. Added staff request configuration (it was omitted for some reason)
 
 
 ## Extra information
@@ -27,4 +28,5 @@ Recently, a user apart of ERM's dev team attempted to remotely shutdown ERM. The
 | Item | Notes |
 |------|-------|
 | Error: WEATHER_SERVICE_URL not defined | Ignore this. It is not required and does not impact the bot's functionality |
+
 
