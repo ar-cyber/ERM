@@ -180,7 +180,7 @@ def _embed_fields_to_markdown(fields: Sequence[Any]) -> str:
         for f in row:
             fn = (getattr(f, "name", None) or "").strip()
             fv = (getattr(f, "value", None) or "")
-            fv_one = " ".join(fv.splitlines()).strip()
+            fv_one = fv.strip()
             row_names.append(f"**{fn}**" if fn else "\u200b")
             row_vals.append(fv_one if fv_one else "\u200b")
 
