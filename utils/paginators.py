@@ -189,6 +189,7 @@ class SelectPagination(discord.ui.View):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         msg = await interaction.followup.send(
+            _cv2_skip=True,
             embed=discord.Embed(
                 title="Change Pages",
                 description="What page would you like to change to?",

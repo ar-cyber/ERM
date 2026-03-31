@@ -34,6 +34,7 @@ from roblox import client as roblox
 from sentry_sdk import push_scope, capture_exception
 from sentry_sdk.integrations.pymongo import PyMongoIntegration
 from utils.task_loader import start_tasks
+from utils.comp_v2_bridge import enable_components_v2_embed_bridge
 
 from datamodels.CustomFlags import CustomFlags
 from datamodels.ServerKeys import ServerKeys
@@ -154,6 +155,7 @@ class Bot(commands.AutoShardedBot):
                     self.user.name
                 )
             )
+            enable_components_v2_embed_bridge()
             self.mongo = AsyncMongoClient(str(mongo_url))
 
             # The checking for this is defined just before the run method - approx line 649
@@ -298,6 +300,8 @@ class Bot(commands.AutoShardedBot):
                     self.add_view(
                         LOAMenu(*document["args"]), message_id=document["message_id"]
                     )
+
+            
             self.setup_status = True
 
 
