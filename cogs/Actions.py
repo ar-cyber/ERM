@@ -27,7 +27,7 @@ class Actions(commands.Cog):
     @is_admin()
     async def actions_manage(self, ctx: commands.Context):
         await log_command_usage(self.bot, ctx.guild, ctx.author, f"Actions Manage")
-        actions = [i async for i in self.bot.db.actions.find({"Guild": ctx.guild.id})]
+        actions = [i async for i in await self.bot.db.actions.find({"Guild": ctx.guild.id})]
 
         embeds = []
         current_embed = discord.Embed(title="Actions", color=BLANK_COLOR).set_author(

@@ -113,7 +113,7 @@ async def action_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> typing.List[app_commands.Choice[str]]:
     bot = (await Context.from_interaction(interaction)).bot
-    actions = [i async for i in bot.actions.db.find({"Guild": interaction.guild.id})]
+    actions = [i async for i in await bot.actions.db.find({"Guild": interaction.guild.id})]
     if actions in [None, []]:
         return [discord.app_commands.Choice(name="No actions found", value="NULL")]
 

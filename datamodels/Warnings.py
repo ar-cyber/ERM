@@ -119,7 +119,7 @@ class Warnings(Document):
         """
         Gets the warnings for a user globally.
         """
-        return [i async for i in self.db.find({"UserID": user})]
+        return [i async for i in await self.db.find({"UserID": user})]
 
     async def get_guild_bolos(self, guild: int) -> list[dict]:
         """

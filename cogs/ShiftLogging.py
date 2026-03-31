@@ -123,7 +123,7 @@ class ShiftLogging(commands.Cog):
         if selected_shift_type:
             query["Type"] = selected_shift_type["name"]
 
-        storage_item = [i async for i in bot.shift_management.shifts.db.find(query)]
+        storage_item = [i async for i in await bot.shift_management.shifts.db.find(query)]
         for s in storage_item:
             if s["EndEpoch"] != 0:
                 shifts.append(s)

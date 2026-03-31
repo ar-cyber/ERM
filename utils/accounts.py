@@ -19,7 +19,7 @@ class Accounts:
         else:
             roblox_id = roblox_user_id
         
-        linked_accounts = [i async for i in bot.oauth2_users.db.find({"roblox_id": roblox_id})]
+        linked_accounts = [i async for i in await bot.oauth2_users.db.find({"roblox_id": roblox_id})]
         for linked_account in linked_accounts: 
             if guild.get_member(int(linked_account["discord_id"] or 0)):
                 return guild.get_member(int(linked_account["discord_id"] or 0))
