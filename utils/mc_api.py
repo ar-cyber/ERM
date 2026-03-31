@@ -2,7 +2,7 @@ import asyncio
 import typing
 import aiohttp
 from datamodels.ServerKeys import ServerKey
-from utils.prc_api import ResponseFailure, ServerStatus, Player, CommandLog, BanItem
+from utils.game_api_classes import ResponseFailure, ServerStatus, Player, CommandLog, BanItem
 
 
 class MCApiClient:
