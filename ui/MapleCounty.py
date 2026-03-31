@@ -1,6 +1,6 @@
 from discord import Interaction
 from discord.ext import commands
-from utils.constants import blank_color
+from utils.constants import BLANK_COLOR
 from utils.mc_api import ServerKey
 from utils.utils import config_change_log
 import discord
@@ -49,7 +49,7 @@ class MapleCountyConfiguration(discord.ui.View):
             description=(
                 "> This module allows for automatic checks on Discord accounts of players in your Maple County server."
             ),
-            color=blank_color,
+            color=BLANK_COLOR,
         ).add_field(
             name="Alert Channel",
             value=f"> Players that aren't in the Discord server will be sent in this channel.",

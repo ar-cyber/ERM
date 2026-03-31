@@ -1,15 +1,15 @@
 # TODO: Refactor this mess at one point. It's better than before
 
 import discord
-from acv import AssociationConfigurationView
+from .acv import AssociationConfigurationView
 from utils.utils import config_change_log, time_converter, generator
 from utils.timestamp import td_format
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 import datetime
-from custommodal import *
+from .custommodal import *
 import roblox
 from discord import Interaction
-from erlcstatshelpers import *
+from .erlcstatshelpers import *
 from discord.ext import commands
 
 # HELPERSs
@@ -421,6 +421,31 @@ class WelcomeMessagingConfiguration(discord.ui.View):
         sett["ERLC"]["welcome_message"] = self.welcome_message
         await self.bot.settings.update_by_id(sett)
 
+class NextView(discord.ui.View):
+    def __init__(self, bot, user_id: int):
+        super().__init__(timeout=600.0)
+
+        button = self.children[0]
+        button.emoji = discord.PartialEmoji.from_str(
+            bot.emoji_controller.get_emoji("arrow")
+        )
+
+        self.user_id = user_id
+        self.value = None
+
+    @discord.ui.button(emoji="<:arrow:1169695690784518154>")
+    async def _next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.user_id]:
+            return await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Not Permitted",
+                    description="You are not permitted to interact with these buttons.",
+                    color=BLANK_COLOR,
+                )
+            )
+        self.value = True
+        await interaction.response.defer()
+        self.stop()
 
 
 class ERLCStats(discord.ui.View):
@@ -922,6 +947,9 @@ class RoleQuotaCreator(discord.ui.View):
         self.stop()
 
 # CONFIG
+
+
+#
 class BasicConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -941,6 +969,7 @@ class BasicConfiguration(AssociationConfigurationView):
 
         await interaction.response.defer()
         guild_id = interaction.guild.id
+
         bot = self.bot
         sett = await bot.settings.find_by_id(guild_id)
         sett["staff_management"]["role"] = [i.id for i in select.values]
@@ -1049,46 +1078,7 @@ class BasicConfiguration(AssociationConfigurationView):
         for i in select.options:
             i.default = False
 
-
-# class PunishmentTypesConfiguration(discord.ui.View):
-#     def __init__(self, bot, user_id: int, given_data: list):
-#             # Init vars
-#             self.bot = bot
-#             self.user_id = user_id
-#             self.given_data = given_data
 #
-#             # TODO: match given data -> embed structure
-#
-#     async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
-#         if interaction.user.id == self.user_id:
-#             return True
-#         else:
-#             await interaction.response.send_message(embed=discord.Embed(
-#                 title="Not Permitted",
-#                 description="You are not permitted to interact with these buttons.",
-#                 color=BLANK_COLOR
-#             ), ephemeral=True)
-#             return False
-#
-#     @discord.ui.select(options=[
-#         discord.SelectOption(
-#             label="Add Type",
-#             description="Add a Punishment Type",
-#             value="add"
-#         ),
-#         discord.SelectOption(
-#             label="Modify Type",
-#             description="Change some settings about a punishment type",
-#             value="modify"
-#         ),
-#         discord.SelectOption(
-#             label="Delete Type",
-#             description="Delete a punishment type",
-#             value="delete"
-#         )
-#     ])
-
-
 class LOAConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1185,7 +1175,7 @@ class LOAConfiguration(AssociationConfigurationView):
         for i in select.options:
             i.default = False
 
-
+#
 class ExtendedShiftOptions(discord.ui.View):
     def __init__(self, bot, associated_defaults: list):
         super().__init__(timeout=None)
@@ -1430,7 +1420,250 @@ class ExtendedShiftOptions(discord.ui.View):
         )
         self.quota_default = seconds
 
+    def __init__(self, bot, associated_defaults: list):
+        super().__init__(timeout=None)
+        self.modal = None
+        self.bot = bot
+        self.modal_default = 0
+        self.nickname_default = None
+        self.quota_default = None
 
+        for label, defaults in associated_defaults:
+            if label == "max_staff":
+                self.modal_default = defaults
+                continue
+            if label == "nickname_prefix":
+                self.nickname_default = defaults
+                continue
+            if label == "quota":
+                self.quota_default = defaults
+                continue
+            if label == "Break Roles":
+                for item in self.children:
+                    if (
+                        isinstance(item, discord.ui.Select)
+                        and item.placeholder == "Break Roles"
+                    ):
+                        item.default_values = defaults
+                continue
+            use_configuration = None
+            if isinstance(defaults[0], list):
+                if defaults[0][0] == "CUSTOM_CONF":
+                    configurator = defaults[0]
+                    match_configurator = configurator[1]
+                    if match_configurator.get("_FIND_BY_LABEL") is True:
+                        items = defaults[1:]
+                        use_configuration = {
+                            "configuration": match_configurator,
+                            "matchables": items,
+                        }
+
+            item = None
+            for iterating_item in self.children:
+                if getattr(iterating_item, "label", None) is None:
+                    if iterating_item.placeholder == label:
+                        item = iterating_item
+                        break
+                else:
+                    if iterating_item.label == label:
+                        item = iterating_item
+                        break
+            if use_configuration is None:
+                for index, defa in enumerate(defaults):
+                    if defa is None:
+                        defaults[index] = 0
+                item.default_values = [i for i in defaults if i != 0]
+            else:
+                found_values = []
+                for val in use_configuration["matchables"]:
+                    if isinstance(item, discord.ui.Select):
+                        if (
+                            use_configuration["configuration"].get(
+                                "_FIND_BY_LABEL", False
+                            )
+                            is True
+                        ):
+                            found_value = [i for i in item.options if i.label == val][0]
+                            if not found_value:
+                                continue
+                            found_values.append(found_value)
+
+                if isinstance(item, discord.ui.Select):
+                    for val in found_values:
+                        find_index = 0
+                        for index, option in enumerate(item.options):
+                            if option == val:
+                                find_index = index
+                                break
+                        new_opt = item.options[find_index]
+                        new_opt.default = True
+                        item.options[find_index] = new_opt
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="Break Roles",
+        max_values=25,
+        min_values=0,
+    )
+    async def shift_role_select(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        # secvuln: prevention
+        highest_role_pos = max([i.position for i in interaction.user.roles])
+        compared_role_pos = max([role.position for role in select.values])
+        if (
+            interaction.user.id != interaction.guild.owner_id
+            and highest_role_pos <= compared_role_pos
+        ):
+            # we're not allowing this ...
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Security Concern",
+                    description="You cannot choose a Break Role that is higher than your maximum role.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
+            select.default_values = list(
+                filter(lambda x: x.position < highest_role_pos, select.values)
+            )
+            await interaction.message.edit(view=self)
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        sett["shift_management"]["break_roles"] = [i.id for i in select.values]
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            bot,
+            interaction.guild,
+            interaction.user,
+            f"Break Role has been set to {', '.join([f'<@&{i.id}>' for i in select.values])}.",
+        )
+
+    @discord.ui.button(label="Set Maximum Staff Online", row=4)
+    async def set_maximum_staff_online(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        self.modal = CustomModal(
+            "Maximum Staff",
+            [
+                (
+                    "max_staff",
+                    discord.ui.TextInput(
+                        label="Maximum Staff Online",
+                        placeholder="This is the amount of staff members that can be online at one time.",
+                        default=str(self.modal_default),
+                        required=False,
+                    ),
+                )
+            ],
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        max_staff = self.modal.max_staff.value
+        max_staff = int(max_staff.strip())
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(interaction.guild.id)
+        sett["shift_management"]["maximum_staff"] = max_staff
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            bot,
+            interaction.guild,
+            interaction.user,
+            f"Maximum Staff Online has been set to {max_staff}.",
+        )
+        self.modal_default = max_staff
+
+    @discord.ui.button(label="Set Nickname Prefix", row=3)
+    async def set_nickname_prefix(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        self.modal = CustomModal(
+            "Nickname Prefix",
+            [
+                (
+                    "nickname_prefix",
+                    discord.ui.TextInput(
+                        label="Nickname Prefix",
+                        placeholder="The nickname prefix that will be used when someone goes On-Duty.",
+                        default=str(self.nickname_default),
+                        required=False,
+                    ),
+                )
+            ],
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        nickname_prefix = self.modal.nickname_prefix.value
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(interaction.guild.id)
+        sett["shift_management"]["nickname_prefix"] = nickname_prefix
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            bot,
+            interaction.guild,
+            interaction.user,
+            f"Nickname Prefix has been set to {nickname_prefix}.",
+        )
+        self.nickname_default = nickname_prefix
+
+    @discord.ui.button(label="Set Quota", row=2)
+    async def set_quota(self, interaction: discord.Interaction, button: discord.Button):
+        quota_hours = self.quota_default
+        self.modal = CustomModal(
+            "Quota",
+            [
+                (
+                    "quota",
+                    discord.ui.TextInput(
+                        label="Quota",
+                        placeholder="This value will be used to judge whether a staff member has completed quota.",
+                        default=td_format(datetime.timedelta(seconds=quota_hours)),
+                        required=False,
+                    ),
+                )
+            ],
+            epher_args={"ephemeral": True},
+        )
+
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+
+        try:
+            seconds = time_converter(self.modal.quota.value)
+        except ValueError:
+            return await interaction.followup.send(
+                embed=discord.Embed(
+                    title="Invalid Time",
+                    description="You provided an invalid time format.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(interaction.guild.id)
+        sett["shift_management"]["quota"] = seconds
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            bot,
+            interaction.guild,
+            interaction.user,
+            f"Quota has been set to {td_format(datetime.timedelta(seconds=seconds))}.",
+        )
+        self.quota_default = seconds
+
+#
 class ShiftConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -2479,6 +2712,449 @@ class GameSecurityConfiguration(AssociationConfigurationView):
             f"Game Security Mentionables Set: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
         )
 
+
+
+class ExtendedGameLogging(AssociationConfigurationView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="Message Logging Channel",
+        row=0,
+        max_values=1,
+        min_values=0,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def message_logging_channel(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"message": {}}
+        if not sett.get("game_logging", {}).get("message"):
+            sett["game_logging"]["message"] = {}
+        sett["game_logging"]["message"]["channel"] = int(select.values[0].id or 0)
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Message Logging Channel Set: <#{select.values[0].id}>",
+        )
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="STS Logging Channel",
+        row=1,
+        max_values=1,
+        min_values=0,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def sts_logging_channel(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"sts": {}}
+        if not sett.get("game_logging", {}).get("sts"):
+            sett["game_logging"]["sts"] = {}
+        sett["game_logging"]["sts"]["channel"] = int(select.values[0].id or 0)
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"STS Logging Channel Set: <#{select.values[0].id}>",
+        )
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="Priority Logging Channel",
+        row=2,
+        max_values=1,
+        min_values=0,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def priority_logging_channel(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"priority": {}}
+        if not sett.get("game_logging", {}).get("priority"):
+            sett["game_logging"]["priority"] = {}
+        sett["game_logging"]["priority"]["channel"] = int(select.values[0].id or 0)
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Priority Logging Channel Set: <#{select.values[0].id}>",
+        )
+
+
+class AntipingConfiguration(AssociationConfigurationView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @discord.ui.select(
+        placeholder="Anti-Ping",
+        row=0,
+        options=[
+            discord.SelectOption(
+                label="Enabled", value="enabled", description="Anti-Ping is enabled."
+            ),
+            discord.SelectOption(
+                label="Disabled", value="disabled", description="Anti-Ping is disabled."
+            ),
+        ],
+        max_values=1,
+    )
+    async def antiping_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("antiping"):
+            sett["antiping"] = {}
+
+        sett["antiping"]["enabled"] = bool(select.values[0] == "enabled")
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Anti-Ping {select.values[0]}.",
+        )
+        for i in select.options:
+            i.default = False
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="Affected Roles",
+        row=1,
+        max_values=5,
+        min_values=0,
+    )
+    async def affected_roles(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("antiping"):
+            sett["antiping"] = {"enabled": False, "role": [], "bypass_role": []}
+        sett["antiping"]["role"] = [i.id for i in select.values]
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Anti Ping Affected Roles: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
+        )
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="Bypass Roles",
+        row=2,
+        max_values=5,
+        min_values=0,
+    )
+    async def bypass_roles(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("antiping"):
+            sett["antiping"] = {"enabled": False, "role": [], "bypass_role": []}
+        sett["antiping"]["bypass_role"] = [i.id for i in select.values]
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Anti Ping Bypass Roles: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
+        )
+
+    @discord.ui.select(
+        placeholder="Use Hierarchy",
+        row=3,
+        options=[
+            discord.SelectOption(
+                label="Enabled", value="enabled", description="Hierarchy is enabled."
+            ),
+            discord.SelectOption(
+                label="Disabled", value="disabled", description="Hierarchy is disabled."
+            ),
+        ],
+        max_values=1,
+    )
+    async def hierarchy_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("antiping"):
+            sett["antiping"] = {
+                "enabled": False,
+                "role": [],
+                "bypass_role": [],
+                "use_hierarchy": None,
+            }
+
+        sett["antiping"]["use_hierarchy"] = bool(select.values[0] == "enabled")
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Anti Ping Hierarchy {select.values[0]}",
+        )
+        for i in select.options:
+            i.default = False
+
+
+class GameLoggingConfiguration(AssociationConfigurationView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @discord.ui.select(
+        placeholder="Message Logging",
+        row=0,
+        options=[
+            discord.SelectOption(
+                label="Enabled",
+                value="enabled",
+                description="Message Logging is enabled.",
+            ),
+            discord.SelectOption(
+                label="Disabled",
+                value="disabled",
+                description="Message Logging is disabled.",
+            ),
+        ],
+        max_values=1,
+    )
+    async def message_logging_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"message": {}}
+        if not sett.get("game_logging", {}).get("message"):
+            sett["game_logging"]["message"] = {}
+
+        sett["game_logging"]["message"]["enabled"] = bool(select.values[0] == "enabled")
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Message Logging {select.values[0]}",
+        )
+        for i in select.options:
+            i.default = False
+
+    @discord.ui.select(
+        placeholder="STS Logging",
+        row=1,
+        options=[
+            discord.SelectOption(
+                label="Enabled", value="enabled", description="STS Logging is enabled."
+            ),
+            discord.SelectOption(
+                label="Disabled",
+                value="disabled",
+                description="STS Logging is disabled.",
+            ),
+        ],
+        max_values=1,
+    )
+    async def sts_logging_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"sts": {}}
+        if not sett.get("game_logging", {}).get("sts"):
+            sett["game_logging"]["sts"] = {}
+
+        sett["game_logging"]["sts"]["enabled"] = bool(select.values[0] == "enabled")
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"STS Logging {select.values[0]}",
+        )
+        for i in select.options:
+            i.default = False
+
+    @discord.ui.select(
+        placeholder="Priority Logging",
+        row=2,
+        options=[
+            discord.SelectOption(
+                label="Enabled",
+                value="enabled",
+                description="Priority Logging is enabled.",
+            ),
+            discord.SelectOption(
+                label="Disabled",
+                value="disabled",
+                description="Priority Logging is disabled.",
+            ),
+        ],
+        max_values=1,
+    )
+    async def priority_logging_enabled(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("game_logging"):
+            sett["game_logging"] = {"priority": {}}
+        if not sett.get("game_logging", {}).get("priority"):
+            sett["game_logging"]["priority"] = {}
+
+        sett["game_logging"]["priority"]["enabled"] = bool(
+            select.values[0] == "enabled"
+        )
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"Priority Logging {select.values[0]}",
+        )
+        for i in select.options:
+            i.default = False
+
+    @discord.ui.button(label="More Options", row=3)
+    async def more_options(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        val = await self.interaction_check(interaction)
+        if val is False:
+            return
+        sett = await self.bot.settings.find_by_id(interaction.guild.id)
+        new_view = ExtendedGameLogging(
+            self.bot,
+            interaction.user.id,
+            [
+                (
+                    "Priority Logging Channel",
+                    [
+                        discord.utils.get(
+                            interaction.guild.channels,
+                            id=sett.get("game_logging", {})
+                            .get("priority", {})
+                            .get("channel", 0),
+                        )
+                    ],
+                ),
+                (
+                    "Message Logging Channel",
+                    [
+                        discord.utils.get(
+                            interaction.guild.channels,
+                            id=sett.get("game_logging", {})
+                            .get("message", {})
+                            .get("channel", 0),
+                        )
+                    ],
+                ),
+                (
+                    "STS Logging Channel",
+                    [
+                        discord.utils.get(
+                            interaction.guild.channels,
+                            id=sett.get("game_logging", {})
+                            .get("sts", {})
+                            .get("channel", 0),
+                        )
+                    ],
+                ),
+            ],
+        )
+        await interaction.response.send_message(view=new_view, ephemeral=True)
+
+
 class WhitelistVehiclesManagement(discord.ui.View):
     def __init__(
         self,
@@ -2778,6 +3454,7 @@ class WhitelistVehiclesManagement(discord.ui.View):
             interaction.user,
             f"Whitelisted Vehicle Alert Message Set: {modal.message.value}",
         )
+
 
 
 class ERLCIntegrationConfiguration(AssociationConfigurationView):
@@ -3356,6 +4033,7 @@ class MoreERLCConfiguration(discord.ui.View):
     #     view = callSignCheck(self.bot, interaction.user.id, sett)
     #     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+
 class ExtendedPriorityConfiguration(AssociationConfigurationView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -3618,448 +4296,72 @@ class PriorityRequestConfiguration(AssociationConfigurationView):
 
 
 
-class ExtendedGameLogging(AssociationConfigurationView):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @discord.ui.select(
-        cls=discord.ui.ChannelSelect,
-        placeholder="Message Logging Channel",
-        row=0,
-        max_values=1,
-        min_values=0,
-        channel_types=[discord.ChannelType.text],
-    )
-    async def message_logging_channel(
-        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"message": {}}
-        if not sett.get("game_logging", {}).get("message"):
-            sett["game_logging"]["message"] = {}
-        sett["game_logging"]["message"]["channel"] = int(select.values[0].id or 0)
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Message Logging Channel Set: <#{select.values[0].id}>",
-        )
-
-    @discord.ui.select(
-        cls=discord.ui.ChannelSelect,
-        placeholder="STS Logging Channel",
-        row=1,
-        max_values=1,
-        min_values=0,
-        channel_types=[discord.ChannelType.text],
-    )
-    async def sts_logging_channel(
-        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"sts": {}}
-        if not sett.get("game_logging", {}).get("sts"):
-            sett["game_logging"]["sts"] = {}
-        sett["game_logging"]["sts"]["channel"] = int(select.values[0].id or 0)
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"STS Logging Channel Set: <#{select.values[0].id}>",
-        )
-
-    @discord.ui.select(
-        cls=discord.ui.ChannelSelect,
-        placeholder="Priority Logging Channel",
-        row=2,
-        max_values=1,
-        min_values=0,
-        channel_types=[discord.ChannelType.text],
-    )
-    async def priority_logging_channel(
-        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"priority": {}}
-        if not sett.get("game_logging", {}).get("priority"):
-            sett["game_logging"]["priority"] = {}
-        sett["game_logging"]["priority"]["channel"] = int(select.values[0].id or 0)
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Priority Logging Channel Set: <#{select.values[0].id}>",
-        )
-
-
-class AntipingConfiguration(AssociationConfigurationView):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @discord.ui.select(
-        placeholder="Anti-Ping",
-        row=0,
-        options=[
-            discord.SelectOption(
-                label="Enabled", value="enabled", description="Anti-Ping is enabled."
-            ),
-            discord.SelectOption(
-                label="Disabled", value="disabled", description="Anti-Ping is disabled."
-            ),
-        ],
-        max_values=1,
-    )
-    async def antiping_enabled(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("antiping"):
-            sett["antiping"] = {}
-
-        sett["antiping"]["enabled"] = bool(select.values[0] == "enabled")
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Anti-Ping {select.values[0]}.",
-        )
-        for i in select.options:
-            i.default = False
-
-    @discord.ui.select(
-        cls=discord.ui.RoleSelect,
-        placeholder="Affected Roles",
-        row=1,
-        max_values=5,
-        min_values=0,
-    )
-    async def affected_roles(
-        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("antiping"):
-            sett["antiping"] = {"enabled": False, "role": [], "bypass_role": []}
-        sett["antiping"]["role"] = [i.id for i in select.values]
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Anti Ping Affected Roles: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
-        )
-
-    @discord.ui.select(
-        cls=discord.ui.RoleSelect,
-        placeholder="Bypass Roles",
-        row=2,
-        max_values=5,
-        min_values=0,
-    )
-    async def bypass_roles(
-        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("antiping"):
-            sett["antiping"] = {"enabled": False, "role": [], "bypass_role": []}
-        sett["antiping"]["bypass_role"] = [i.id for i in select.values]
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Anti Ping Bypass Roles: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
-        )
-
-    @discord.ui.select(
-        placeholder="Use Hierarchy",
-        row=3,
-        options=[
-            discord.SelectOption(
-                label="Enabled", value="enabled", description="Hierarchy is enabled."
-            ),
-            discord.SelectOption(
-                label="Disabled", value="disabled", description="Hierarchy is disabled."
-            ),
-        ],
-        max_values=1,
-    )
-    async def hierarchy_enabled(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("antiping"):
-            sett["antiping"] = {
-                "enabled": False,
-                "role": [],
-                "bypass_role": [],
-                "use_hierarchy": None,
-            }
-
-        sett["antiping"]["use_hierarchy"] = bool(select.values[0] == "enabled")
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Anti Ping Hierarchy {select.values[0]}",
-        )
-        for i in select.options:
-            i.default = False
-
-
-class GameLoggingConfiguration(AssociationConfigurationView):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @discord.ui.select(
-        placeholder="Message Logging",
-        row=0,
-        options=[
-            discord.SelectOption(
-                label="Enabled",
-                value="enabled",
-                description="Message Logging is enabled.",
-            ),
-            discord.SelectOption(
-                label="Disabled",
-                value="disabled",
-                description="Message Logging is disabled.",
-            ),
-        ],
-        max_values=1,
-    )
-    async def message_logging_enabled(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"message": {}}
-        if not sett.get("game_logging", {}).get("message"):
-            sett["game_logging"]["message"] = {}
-
-        sett["game_logging"]["message"]["enabled"] = bool(select.values[0] == "enabled")
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Message Logging {select.values[0]}",
-        )
-        for i in select.options:
-            i.default = False
-
-    @discord.ui.select(
-        placeholder="STS Logging",
-        row=1,
-        options=[
-            discord.SelectOption(
-                label="Enabled", value="enabled", description="STS Logging is enabled."
-            ),
-            discord.SelectOption(
-                label="Disabled",
-                value="disabled",
-                description="STS Logging is disabled.",
-            ),
-        ],
-        max_values=1,
-    )
-    async def sts_logging_enabled(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"sts": {}}
-        if not sett.get("game_logging", {}).get("sts"):
-            sett["game_logging"]["sts"] = {}
-
-        sett["game_logging"]["sts"]["enabled"] = bool(select.values[0] == "enabled")
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"STS Logging {select.values[0]}",
-        )
-        for i in select.options:
-            i.default = False
-
-    @discord.ui.select(
-        placeholder="Priority Logging",
-        row=2,
-        options=[
-            discord.SelectOption(
-                label="Enabled",
-                value="enabled",
-                description="Priority Logging is enabled.",
-            ),
-            discord.SelectOption(
-                label="Disabled",
-                value="disabled",
-                description="Priority Logging is disabled.",
-            ),
-        ],
-        max_values=1,
-    )
-    async def priority_logging_enabled(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        value = await self.interaction_check(interaction)
-        if not value:
-            return
-
-        await interaction.response.defer()
-        guild_id = interaction.guild.id
-
-        bot = self.bot
-        sett = await bot.settings.find_by_id(guild_id)
-        if not sett.get("game_logging"):
-            sett["game_logging"] = {"priority": {}}
-        if not sett.get("game_logging", {}).get("priority"):
-            sett["game_logging"]["priority"] = {}
-
-        sett["game_logging"]["priority"]["enabled"] = bool(
-            select.values[0] == "enabled"
-        )
-        await bot.settings.update_by_id(sett)
-        await config_change_log(
-            self.bot,
-            interaction.guild,
-            interaction.user,
-            f"Priority Logging {select.values[0]}",
-        )
-        for i in select.options:
-            i.default = False
-
-    @discord.ui.button(label="More Options", row=3)
-    async def more_options(
-        self, interaction: discord.Interaction, button: discord.Button
-    ):
-        val = await self.interaction_check(interaction)
-        if val is False:
-            return
-        sett = await self.bot.settings.find_by_id(interaction.guild.id)
-        new_view = ExtendedGameLogging(
-            self.bot,
-            interaction.user.id,
-            [
-                (
-                    "Priority Logging Channel",
-                    [
-                        discord.utils.get(
-                            interaction.guild.channels,
-                            id=sett.get("game_logging", {})
-                            .get("priority", {})
-                            .get("channel", 0),
-                        )
-                    ],
-                ),
-                (
-                    "Message Logging Channel",
-                    [
-                        discord.utils.get(
-                            interaction.guild.channels,
-                            id=sett.get("game_logging", {})
-                            .get("message", {})
-                            .get("channel", 0),
-                        )
-                    ],
-                ),
-                (
-                    "STS Logging Channel",
-                    [
-                        discord.utils.get(
-                            interaction.guild.channels,
-                            id=sett.get("game_logging", {})
-                            .get("sts", {})
-                            .get("channel", 0),
-                        )
-                    ],
-                ),
-            ],
-        )
-        await interaction.response.send_message(view=new_view, ephemeral=True)
-
 
 class RDMERLCConfiguration(AssociationConfigurationView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="RDM Mentionables",
+        row=0,
+        max_values=25,
+        min_values=0,
+    )
+    async def rdm_mentionables(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("ERLC"):
+            sett["ERLC"] = {}
+        sett["ERLC"]["rdm_mentionables"] = [i.id for i in select.values]
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"RDM Mentionables Set: {', '.join([f'<@&{i.id}>' for i in select.values])}.",
+        )
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="RDM Alert Channel",
+        row=1,
+        max_values=1,
+        min_values=0,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def rdm_alert_channel(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        value = await self.interaction_check(interaction)
+        if not value:
+            return
+
+        await interaction.response.defer()
+        guild_id = interaction.guild.id
+
+        bot = self.bot
+        sett = await bot.settings.find_by_id(guild_id)
+        if not sett.get("ERLC"):
+            sett["ERLC"] = {}
+        sett["ERLC"]["rdm_channel"] = int(select.values[0].id or 0)
+        await bot.settings.update_by_id(sett)
+        await config_change_log(
+            self.bot,
+            interaction.guild,
+            interaction.user,
+            f"RDM Alert Channel Set: <#{select.values[0].id}>",
+        )
+class AutomaticShiftConfiguration(discord.ui.View):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

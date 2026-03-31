@@ -7,7 +7,7 @@ from discord.ext import commands
 from copy import deepcopy
 
 from erm import check_privacy, generator, is_management
-from utils.constants import blank_color, BLANK_COLOR
+from utils.constants import BLANK_COLOR, BLANK_COLOR
 from ui.selects import RoleSelect, ChannelSelect, CustomSelectMenu
 from ui.configuration import *
 from menus import (
@@ -108,7 +108,7 @@ class Configuration(commands.Cog):
                 embed=discord.Embed(
                     title="Already Setup",
                     description="You've already setup ERM in this server! Are you sure you would like to go through the setup process again?",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 view=(confirmation_view := YesNoColourMenu(ctx.author.id)),
             )
@@ -118,7 +118,7 @@ class Configuration(commands.Cog):
                     embed=discord.Embed(
                         title="Successfully Cancelled",
                         description="Cancelled the setup process for this server. All settings have been kept.",
-                        color=blank_color,
+                        color=BLANK_COLOR,
                     ),
                     view=None,
                 )
@@ -128,7 +128,7 @@ class Configuration(commands.Cog):
                 embed=discord.Embed(
                     title="Let's get started!",
                     description="To setup ERM, press the arrow button below!",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 view=(next_view := NextView(bot, ctx.author.id)),
             )
@@ -137,7 +137,7 @@ class Configuration(commands.Cog):
                 embed=discord.Embed(
                     title="Let's get started!",
                     description="To setup ERM, press the arrow button below!",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 view=(next_view := NextView(bot, ctx.author.id)),
             )
@@ -148,7 +148,7 @@ class Configuration(commands.Cog):
                 embed=discord.Embed(
                     title="Cancelled",
                     description="You have took too long to complete this part of the setup.",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 view=None,
             )
@@ -290,7 +290,7 @@ class Configuration(commands.Cog):
                     "**Management Role:** A management role is the roles of your server management members. These people will be able to delete punishments, modify people's shift time, and accept LOA Requests.\n\n"
                     "**Prefix:** This will be a prefix you are able to use instead of our slash command system. You can use this prefix to execute commands slightly faster and to take advantage of some extra features."
                 ),
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=basic_settings,
         )
@@ -369,7 +369,7 @@ class Configuration(commands.Cog):
                     "**LOA Role:** This role is given to those who are on Leave of Absence, and is removed when they go off Leave of Absence.\n\n"
                     "**LOA Channel:** This channel will be where Leave of Absence requests will be logged, and where they will be accepted or denied. Make sure this is a channel that Management members can see, so that they can approve LOA requests."
                 ),
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=loa_requests_settings,
         )
@@ -418,7 +418,7 @@ class Configuration(commands.Cog):
                     "**What are RA Requests?** RA Requests, also called Reduced Activity Requests, are a form of Leave of Absence where the staff member isn't required to complete the full quota, but expects that they will be able to complete it partially.\n\n"
                     "**RA Role:** This role is given to those who are on Reduced Activity, and is removed when they go off Reduced Activity.\n\n"
                 ),
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=ra_requests_settings,
         )
@@ -480,7 +480,7 @@ class Configuration(commands.Cog):
                     "**Enabled:** This setting toggles the ROBLOX Punishments module. When enabled, staff members will be able to use `/punish`, and management members will be able to additionally use `/punishment manage`.\n\n"
                     "**Punishments Channel:** This is where most punishments made with the ROBLOX Punishments go. Any logged actions of a ROBLOX player will go to this channel."
                 ),
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=punishment_settings,
         )
@@ -562,7 +562,7 @@ class Configuration(commands.Cog):
                     "**Shift Channel:** This is where all shift logs will go to. This channel will be used for all modifications to shifts, any person that may be starting or ending their shift.\n\n"
                     "**On-Duty Role:** When someone is on shift, they will be given this role. When the staff member goes off shift, this role will be removed from them."
                 ),
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=shift_management_settings,
         )
@@ -1061,7 +1061,7 @@ class Configuration(commands.Cog):
                         "**Management Role:** A management role is the roles of your server management members. These people will be able to delete punishments, modify people's shift time, and accept LOA Requests.\n\n"
                         "**Prefix:** This will be a prefix you are able to use instead of our slash command system. You can use this prefix to execute commands slightly faster and to take advantage of some extra features."
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="LOA Requests",
@@ -1070,7 +1070,7 @@ class Configuration(commands.Cog):
                         "**LOA Role:** This role is given to those who are on Leave of Absence, and is removed when they go off Leave of Absence.\n\n"
                         "**LOA Channel:** This channel will be where Leave of Absence requests will be logged, and where they will be accepted or denied. Make sure this is a channel that Management members can see, so that they can approve LOA requests."
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="Shift Management",
@@ -1080,7 +1080,7 @@ class Configuration(commands.Cog):
                         "**Shift Channel:** This is where all shift logs will go to. This channel will be used for all modifications to shifts, any person that may be starting or ending their shift.\n\n"
                         "**On-Duty Role:** When someone is on shift, they will be given this role. When the staff member goes off shift, this role will be removed from them."
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="RA Requests",
@@ -1088,7 +1088,7 @@ class Configuration(commands.Cog):
                         "**What are RA Requests?** RA Requests, also called Reduced Activity Requests, are a form of Leave of Absence where the staff member isn't required to complete the full quota, but expects that they will be able to complete it partially.\n\n"
                         "**RA Role:** This role is given to those who are on Reduced Activity, and is removed when they go off Reduced Activity.\n\n"
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="ROBLOX Punishments",
@@ -1097,7 +1097,7 @@ class Configuration(commands.Cog):
                         "**Enabled:** This setting toggles the ROBLOX Punishments module. When enabled, staff members will be able to use `/punish`, and management members will be able to additionally use `/punishment manage`.\n\n"
                         "**Punishments Channel:** This is where most punishments made with the ROBLOX Punishments go. Any logged actions of a ROBLOX player will go to this channel."
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="Game Security",
@@ -1108,11 +1108,11 @@ class Configuration(commands.Cog):
                         "**Alert Channel:** This channel is where the bot will send the corresponding alerts for abuse of administrative privileges in your private server. It is recommended for this not to be the same as your Webhook Channel so that you don't miss any unresolved Security Alerts.\n\n"
                         "**Mentionables:** These roles will be mentioned when a security alert is sent by ERM. All of these roles will be mentioned in the message, and they should be able to deal with the situation at hand for maximum staff efficiency."
                     ),
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 discord.Embed(
                     title="Game Logging",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**What is Game Logging?** Game Logging is an ERM module, particularly tailored towards private servers of Emergency Response: Liberty County, but can apply to other roleplay games in a similar genre. Game Logging allows for staff members to log events of interest, such as custom in-game messages, priority timers, as well as STS events. This allows for streamlined management of staff efficiency.\n\n"
                         "### Message Logging\n\n"
@@ -1128,7 +1128,7 @@ class Configuration(commands.Cog):
                 ),
                 discord.Embed(
                     title="Anti-Ping",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**What is Anti-Ping?** Anti-ping is an ERM module which specialises in preventing mention abuse of High Ranks within a Discord server. ERM detects if an unauthorized individual mentions a High Ranking individual, and notifies them to discontinue any further attempts to violate the server's regulations.\n\n"
                         "**Enabled:** This setting dictates whether ERM will take action upon these users, and intervene when necessary. When disabled, the Anti-Ping module will not activate.\n\n"
@@ -1139,7 +1139,7 @@ class Configuration(commands.Cog):
                 ),
                 discord.Embed(
                     title="ER:LC Integration",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**What is the ER:LC Integration?** ER:LC Integration allows for ERM to communicate with the Police Roleplay Community APIs, and your Emergency Response: Liberty County server. In particular, these configurations allow for Join Logs, Leave Logs, and Kill Logs to be logged.\n\n"
                         "**Elevation Required:** This setting dictates whether elevated permissions are required to run commands such as `:admin` and `:unadmin`. In such case where this is enabled, Co-Owner permissions are required to run these commands to prevent security risk. If disabled, those with the Management Roles in your server can run these commands. **It is advised you keep this enabled unless you have a valid reason to turn it off.** Contact ERM Support if you are unsure what this setting does.\n\n"
@@ -1149,7 +1149,7 @@ class Configuration(commands.Cog):
                 ),
                 discord.Embed(
                     title="ERM Logging",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**ERM Log Channel:** This channel is where ERM will log all administrative commands and configuration changes made by Admin & Management Roles. This is useful for auditing purposes, ensuring transparency, and detecting any potential abuse of administrative privileges. This is a critical part of ERM and should be enabled for all servers using ERM.\n\n"
                         "All commands such as Duty Admin, LOA Admin, RA Admin, Server Manage, Config, etc., as well as nearly all configuration changes, will be logged in this channel."
@@ -1157,7 +1157,7 @@ class Configuration(commands.Cog):
                 ),
                 discord.Embed(
                     title="Priority Requests",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**Blacklisted Roles:** These are the roles which are unable to use the ERM Priority Request system. They will not be able to submit priority requests if they have any of these roles.\n\n"
                         "**Mentioned Roles:** When a priority request is submitted, these roles will be mentioned in the accompanying message advising staff in regards to the priority request.\n\n"
@@ -1166,7 +1166,7 @@ class Configuration(commands.Cog):
                 ),
                 discord.Embed(
                     title="Maple County Integration",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                     description=(
                         "**What is the Maple County Integration?**\nThe Maple County Integration allows for ERM to communicate with the Maple County APIs, and your Maple County server. In particular, these configurations allow for configuration of various Maple County-specific supported features and settings.\n\n"
                     )

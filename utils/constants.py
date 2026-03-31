@@ -64,7 +64,7 @@ base_configuration = {
 """
 
 BLANK_COLOR = 0x2B2D31
-blank_color = BLANK_COLOR  # Redundancy
+BLANK_COLOR = BLANK_COLOR  # Redundancy
 
 
 GREEN_COLOR = discord.Colour.brand_green()

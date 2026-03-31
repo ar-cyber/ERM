@@ -10,9 +10,10 @@ from discord.app_commands import AppCommandGroup
 from discord.ext import commands
 import pytz
 
-from menus import LinkView, CustomSelectMenu, MultiPaginatorMenu, APIKeyConfirmation
+from menus import LinkView, CustomSelectMenu, APIKeyConfirmation
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 from utils.timestamp import td_format
+from utils.paginators import MultiPaginatorMenu
 from utils.utils import invis_embed, failure_embed, require_settings, time_converter
 from erm import is_staff, is_management
 

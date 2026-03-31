@@ -1,9 +1,8 @@
 import discord
-from selects import RoleSelect
+from .selects import RoleSelect
 import typing
 import datetime
-from custommodal import CustomModal, CustomModalView
-from actions import ManageActions
+from .custommodal import CustomModal, CustomModalView
 from utils.timestamp import td_format
 from utils.constants import (
     BLANK_COLOR,
@@ -18,7 +17,7 @@ from utils.utils import (
     time_converter,
     generator
 )
-
+from discord import Interaction
 class ConditionCreationToolkit(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=600.0)
@@ -478,181 +477,113 @@ class ConditionCreationToolkit(discord.ui.View):
         await self.update_embed(interaction)
 
 
-class ActionCreationToolkit(discord.ui.View):
-    def __init__(self, bot, action_name, user_id):
-        super().__init__(timeout=600.0)
-        self.value = None
-        self.bot = bot
+class ERLCIntegrationToolkit(discord.ui.View):
+    def __init__(self, user_id: int):
+        super().__init__(timeout=900)
+        self.selected_option = None
         self.user_id = user_id
-        self.action_data = {
-            "ActionName": action_name,
-            "ActionID": next(generator),
-            "Triggers": 0,
-            "Integrations": [],
-            "ConditionExecutionInterval": 300,
-            "Conditions": [],
-            "Guild": 0,
-            "LastExecuted": 0,
-        }
+        self.content = None
+        self.message = None
 
-        def return_correspondent_callback(item):
-            async def unnative_callback(interaction):
-                await self.native_callback(interaction, item)
-
-            return unnative_callback
-
-        actions = [
-            "Execute Custom Command",
-            "Toggle Reminder",
-            "Force All Staff Off Duty",
-            "Send ER:LC Command",
-            "Send ER:LC Message",
-            "Send ER:LC Hint",
-            "Delay",
-            "Add Role",
-            "Remove Role",
-            "Execute ERM Command"
-        ]
-
-        extras = ["Remove Last Integration"]
-
-        for item in actions:
-            button = discord.ui.Button(style=discord.ButtonStyle.secondary, label=item)
-            button.callback = return_correspondent_callback(item)
-            self.add_item(button)
-
-        button = discord.ui.Button(
-            style=discord.ButtonStyle.primary, label="Access Roles"
-        )
-        button.callback = self.set_access_roles
-
-        self.add_item(button)
-
-        for item in extras:
-            button = discord.ui.Button(style=discord.ButtonStyle.danger, label=item)
-            button.callback = self.remove_last_integration
-
-            self.add_item(button)
-
-        button = discord.ui.Button(style=discord.ButtonStyle.success, label="Finish")
-        button.callback = self.finish
-
-        self.add_item(button)
-
-    async def finish(self, interaction: discord.Interaction):
-        if len(self.action_data["Integrations"]) == 0:
-            return await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="Not Enough Integrations",
-                    description="You need at least one integration to finish this action.",
-                    color=BLANK_COLOR,
-                ),
-                ephemeral=True,
-            )
-
-        self.action_data["Guild"] = interaction.guild.id
-        self.stop()
-
-    async def remove_last_integration(self, interaction: discord.Interaction):
-        if len(self.action_data["Integrations"]) == 0:
-            return await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="Unable To Remove",
-                    description="I was unable to remove the last integration from this action. It may be that there are no integrations.",
-                    color=BLANK_COLOR
-                ),
-                ephemeral=True
-            )
-        self.action_data["Integrations"].pop(-1)
-        message = interaction.message
-        embed = message.embeds[-1]
-        lines = embed.description.splitlines()
-        lines.pop(-2)
-        content = "\n".join(lines)
-        embed.description = content
-        await interaction.message.edit(embed=embed)
-        await interaction.response.defer(thinking=False)
-
-    async def set_access_roles(self, interaction: discord.Interaction):
-        view = RoleSelect(interaction.user.id, limit=10)
-        view.children[0].default_values = [
-            discord.utils.get(interaction.guild.roles, id=item)
-            for item in (self.action_data.get("AccessRoles", []) or [])
-        ]
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                title="Access Roles",
-                description="These roles will be able to execute this action. **Usually this would be your staff role.**",
-                color=BLANK_COLOR,
-            ),
-            view=view,
-            ephemeral=True,
-        )
-        timeout = await view.wait()
-        if timeout:
-            return
-        self.action_data["AccessRoles"] = [i.id for i in view.value]
-        await (await interaction.original_response()).delete()
-
-    @discord.ui.button(
-        label="Change Conditions",
-        style=discord.ButtonStyle.primary,
-        row=2,
-    )
-    async def add_condition(
+    @discord.ui.button(label="Message", style=discord.ButtonStyle.secondary)
+    async def message(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        embed = discord.Embed(
-            title="Change Conditions",
-            description="Conditions are requirements that must be met for the action. When a condition is selected, the action will be activated when the condition is met. Otherwise, the action will only be executed when ran with `/actions execute`.\n\n**If ...**\n> *No Conditions*",
-            color=BLANK_COLOR,
+        await interaction.response.send_modal(
+            modal := CustomModal(
+                "Edit Message Content",
+                [
+                    (
+                        "msg_content",
+                        discord.ui.TextInput(
+                            label="Message Content", max_length=250, required=True
+                        ),
+                    )
+                ],
+                {"ephemeral": True},
+            )
         )
-        if len(self.action_data["Conditions"]) > 0:
-            embed.description = embed.description.replace("> *No Conditions*", "")
-            for item in self.action_data["Conditions"]:
-                embed.description += f"\n> **{(('`{}`'.format(item.get('LogicGate', '').upper())) + ' ') if item.get('LogicGate', '') != '' else ''}{item['Variable']}** `{item['Operation']}` {item['Value']}"
-
-        embed.add_field(
-            name="Execution Interval",
-            value=td_format(
-                datetime.timedelta(
-                    seconds=self.action_data["ConditionExecutionInterval"]
-                )
-            ),
-            inline=False,
-        )
-
-        view = ConditionCreationToolkit(self.bot)
-        await interaction.response.send_message(embed=embed, ephemeral=True, view=view)
-        timeout = await view.wait()
+        timeout = await modal.wait()
         if timeout:
             return
-        self.action_data["Conditions"] = view.conditions
-        self.action_data["ConditionExecutionInterval"] = view.execution_interval
 
-        embed = interaction.message.embeds[-1]
-        if len(view.conditions) != 0:
-            embed.add_field(
-                name="Conditions",
-                value="\n".join(
-                    [
-                        f"> **{('`{}`'.format(item.get('LogicGate', '')) + ' ') if item.get('LogicGate') else ''}{item['Variable']}** `{item['Operation']}` {item['Value']}"
-                        for item in view.conditions
-                    ]
-                ),
-                inline=False,
+        self.content = modal.msg_content.value
+        self.selected_option = "Message"
+        await self.message.edit(
+            embed=discord.Embed(
+                title="<:success:1163149118366040106> Success!",
+                description="Message integration has successfully been setup.",
+                color=GREEN_COLOR,
+            ),
+            view=None,
+        )
+        self.stop()
+
+    @discord.ui.button(label="Hint", style=discord.ButtonStyle.secondary)
+    async def hint(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            modal := CustomModal(
+                "Edit Hint Content",
+                [
+                    (
+                        "hint_content",
+                        discord.ui.TextInput(
+                            label="Hint Content", max_length=250, required=True
+                        ),
+                    )
+                ],
+                {"thinking": False},
             )
-            embed.add_field(
-                name="Execution Interval",
-                value=td_format(datetime.timedelta(seconds=view.execution_interval)),
-                inline=False,
-            )
-        await interaction.message.edit(embed=embed)
+        )
+        timeout = await modal.wait()
+        if timeout:
+            return
 
-    async def native_callback(self, interaction: discord.Interaction, button_name):
+        self.content = modal.hint_content.value
+        self.selected_option = "Hint"
 
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message(
+        await self.message.edit(
+            embed=discord.Embed(
+                title="<:success:1163149118366040106> Success!",
+                description="Hint integration has successfully been setup.",
+                color=GREEN_COLOR,
+            ),
+            view=None,
+        )
+        self.stop()
+
+
+class ReminderCreationToolkit(discord.ui.View):
+    def __init__(
+        self,
+        user_id: int,
+        dataset: dict,
+        option: typing.Literal["create", "edit"],
+        preset_values: dict | None = None,
+    ):
+        super().__init__(timeout=900.0)
+        self.user_id = user_id
+        self.dataset = dataset
+        self.cancelled = None
+        self.option = option
+
+        for key, value in (preset_values or {}).items():
+            for item in self.children:
+                if isinstance(item, discord.ui.RoleSelect) or isinstance(
+                    item, discord.ui.ChannelSelect
+                ):
+                    if item.placeholder == key:
+                        item.default_values = value
+                if isinstance(item, discord.ui.Button):
+                    if item.label == key:
+                        item.label = value["label"]
+                        item.style = value["style"]
+
+    async def interaction_check(self, interaction: Interaction, /) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        else:
+            await interaction.response.send_message(
                 embed=discord.Embed(
                     title="Not Permitted",
                     description="You are not permitted to interact with these buttons.",
@@ -660,203 +591,315 @@ class ActionCreationToolkit(discord.ui.View):
                 ),
                 ephemeral=True,
             )
-        correspondents = {
-            "Execute Custom Command": 1,
-            "Toggle Reminder": 1,
-            "Force All Staff Off Duty": 0,
-            "Send ER:LC Command": 1,
-            "Send ER:LC Message": 1,
-            "Send ER:LC Hint": 1,
-            "Delay": 1,
-            "Add Role": 1,
-            "Remove Role": 1,
-            "Execute ERM Command": 1,
-        }
-        if not correspondents[button_name]:
-            msg = interaction.message
-            embed = msg.embeds[-1]
+            return False
 
-            msg.embeds[-1].description = msg.embeds[-1].description.replace("No Integrations", "").replace("*New Integration*", "")
-            if (
-                len(f" **{button_name}**\n> *New Integration*")
-                + len(msg.embeds[-1].description)
-            ) > 4000:
-                embed = discord.Embed(
-                    title="\u200b", color=BLANK_COLOR, description="> "
-                )
-                embed.description += f" **{button_name}**\n> *New Integration*"
-                msg.embeds.append(embed)
-            else:
-                embed.description += f" **{button_name}**\n> *New Integration*"
-                msg.embeds[len(msg.embeds) - 1] = embed
+    async def refresh_ui(self, message: discord.Message):
+        embed = discord.Embed(
+            title=f"{self.option.title()} a Reminder",
+            description=(
+                f"> **Name:** {self.dataset['name']}\n"
+                f"> **ID:** {self.dataset['id']}\n"
+                f"> **Channel:** {'<#{}>'.format(self.dataset.get('channel', None)) if self.dataset.get('channel', None) is not None else 'Not set'}\n"
+                f"> **Completion Ability:** {self.dataset.get('completion_ability') or 'Not set'}\n"
+                f"> **Mentioned Roles:** {', '.join(['<@&{}>'.format(r) for r in self.dataset.get('role', [])]) or 'Not set'}\n"
+                f"> **Interval:** {td_format(datetime.timedelta(seconds=self.dataset.get('interval', 0))) or 'Not set'}"
+                f"\n\n**Content:**\n{self.dataset['message']}"
+            ),
+            color=BLANK_COLOR,
+        )
 
-            await interaction.message.edit(embeds=msg.embeds)
-
-            self.action_data["Integrations"].append(
-                {
-                    "IntegrationName": button_name,
-                    "IntegrationID": {
-                        "Execute Custom Command": 0,
-                        "Toggle Reminder": 1,
-                        "Force All Staff Off Duty": 2,
-                        "Send ER:LC Command": 3,
-                        "Send ER:LC Message": 4,
-                        "Send ER:LC Hint": 5,
-                        "Delay": 6,
-                        "Add Role": 7,
-                        "Remove Role": 8,
-                        "Execute ERM Command": 9
-                    }[button_name],
-                    "ExtraInformation": None,
-                }
-            )
-
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title=f"{self.bot.emoji_controller.get_emoji('success')} Successfully Added",
-                    description="I have successfully added the integration.",
-                    color=GREEN_COLOR,
-                ),
-                ephemeral=True,
-            )
-
+        if all(
+            [
+                self.dataset.get("channel") is not None,
+                self.dataset.get("interval") is not None,
+            ]
+        ):
+            for item in self.children:
+                if isinstance(item, discord.ui.Button):
+                    if item.label == "Finish":
+                        item.disabled = False
         else:
-            extra_information = {
-                "Execute Custom Command": ["Custom Command Name", 0],
-                "Toggle Reminder": ["Reminder Name", 0],
-                "Send ER:LC Command": ["Command", 1],
-                "Send ER:LC Message": ["Message", 1],
-                "Send ER:LC Hint": ["Hint", 1],
-                "Delay": ["Time (Seconds)", 1],
-                "Add Role": ["Role ID", 0],
-                "Remove Role": ["Role ID", 0],
-                "Execute ERM Command": ["Command (without prefix)", 1],
-            }
+            for item in self.children:
+                if isinstance(item, discord.ui.Button):
+                    if item.label == "Finish":
+                        item.disabled = True
 
-            view = CustomModalView(
-                interaction.user.id,
-                "Provide Information",
-                "Provide Information",
-                [
-                    (
-                        "info",
-                        discord.ui.TextInput(label=extra_information[button_name][0]),
+        await message.edit(embed=embed, view=self)
+
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect, placeholder="Mentioned Roles", row=0, max_values=25
+    )
+    async def mentioned_roles_select(
+        self, interaction: discord.Interaction, select: discord.ui.RoleSelect
+    ):
+        await interaction.response.defer()
+
+        self.dataset["role"] = [i.id for i in select.values]
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="Reminder Channel",
+        row=1,
+        max_values=1,
+        channel_types=[discord.ChannelType.text],
+    )
+    async def channel_select(
+        self, interaction: discord.Interaction, select: discord.ui.ChannelSelect
+    ):
+        await interaction.response.defer()
+
+        self.dataset["channel"] = [i.id for i in select.values][0]
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.button(label="Set Interval", style=discord.ButtonStyle.secondary, row=2)
+    async def set_interval(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        self.modal = CustomModal(
+            "Set Interval",
+            [
+                (
+                    "interval",
+                    discord.ui.TextInput(
+                        label="Interval",
+                        placeholder="The interval between each reminder. (hours/minutes/seconds/days)",
+                        default=str(self.dataset.get("interval", 0)),
+                        required=False,
+                    ),
+                )
+            ],
+            {"ephemeral": True},
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        try:
+            new_time = time_converter(self.modal.interval.value)
+        except ValueError:
+            return await self.modal.interaction.followup.send(
+                embed=discord.Embed(
+                    title="Invalid Time",
+                    description="You did not enter a valid time.",
+                    color=BLANK_COLOR,
+                )
+            )
+
+        self.dataset["interval"] = new_time
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.button(
+        label="Edit ER:LC Integration", style=discord.ButtonStyle.secondary, row=2
+    )
+    async def edit_integration(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        msg = await interaction.response.send_message(
+            embed=discord.Embed(
+                title="Edit ER:LC Integration",
+                description="Here you can edit your reminder's integrations with Emergency Response: Liberty County, such as sending an automatic message or hint on a reminder activation. **As of right now, you can only have one integration type per reminder.**",
+                color=BLANK_COLOR,
+            ),
+            ephemeral=True,
+            view=(view := ERLCIntegrationToolkit(interaction.user.id)),
+        )
+        view.message = await interaction.original_response()
+        timeout = await view.wait()
+        if timeout:
+            return
+        selected_integration = view.selected_option
+        content = view.content
+
+        self.dataset["integration"] = {
+            "type": selected_integration,
+            "content": view.content,
+        }
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.button(label="Edit Content", style=discord.ButtonStyle.secondary, row=2)
+    async def edit_content(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        self.modal = CustomModal(
+            "Edit Content",
+            [
+                (
+                    "content",
+                    discord.ui.TextInput(
+                        label="Content",
+                        placeholder="The content of the reminder",
+                        default=str(self.dataset.get("message", "")),
+                        style=discord.TextStyle.long,
+                        max_length=2000,
+                        required=False,
+                    ),
+                )
+            ],
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        content = self.modal.content.value
+
+        self.dataset["message"] = content
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.button(
+        label="Completion Ability: Disabled", style=discord.ButtonStyle.danger, row=2
+    )
+    async def edit_completion_ability(
+        self, interaction: discord.Interaction, button: discord.Button
+    ):
+        await interaction.response.defer(thinking=False)
+        if button.label == "Completion Ability: Disabled":
+            self.dataset["completion_ability"] = True
+            button.label = "Completion Ability: Enabled"
+            button.style = discord.ButtonStyle.green
+        else:
+            self.dataset["completion_ability"] = False
+            button.label = "Completion Ability: Disabled"
+            button.style = discord.ButtonStyle.danger
+
+        await self.refresh_ui(interaction.message)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, row=3)
+    async def cancel(self, interaction: discord.Interaction, button: discord.Button):
+        await interaction.response.defer(ephemeral=True)
+        self.cancelled = True
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="Successfully cancelled",
+                description="This reminder has not been created.",
+                color=BLANK_COLOR,
+            )
+        )
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(
+        label="Finish", style=discord.ButtonStyle.green, disabled=True, row=3
+    )
+    async def finish(self, interaction: discord.Interaction, _: discord.Button):
+        await interaction.response.defer()
+        self.cancelled = False
+        self.stop()
+
+
+
+    def __init__(
+        self,
+        bot,
+        sustained_interaction: Interaction,
+        shift_types: list,
+        auto_data: dict,
+    ):
+        self.bot = bot
+        self.shift_types = shift_types
+        self.sustained_interaction = sustained_interaction
+        self.auto_data = auto_data
+        super().__init__(timeout=None)
+        self.toggle_button_styling()
+
+    def toggle_button_styling(self):
+        for item in self.children:
+            if item.label == "Change Shift Type":
+                item.disabled = (
+                    True
+                    if (
+                        len(self.shift_types) == 0
+                        and self.auto_data.get("shift_type") == "Default"
                     )
-                ],
+                    else False
+                )
+
+    @discord.ui.button(
+        label="Toggle Automatic Shifts", style=discord.ButtonStyle.secondary
+    )
+    async def toggle_automatic_shifts(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        self.auto_data["enabled"] = not self.auto_data["enabled"]
+        self.toggle_button_styling()
+        embed = discord.Embed(
+            title="Automatic Shifts", description="", color=BLANK_COLOR
+        )
+        for key, value in self.auto_data.items():
+            embed.description += f"**{key.replace('_', ' ').title()}:** {(value or 'Default') if isinstance(value, str) else ('<:check:1163142000271429662>' if value is True else '<:xmark:1166139967920164915>')}\n"
+
+        embed.set_author(
+            name=interaction.guild.name,
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else "",
+        )
+        await (await self.sustained_interaction.original_response()).edit(
+            embed=embed, view=self
+        )
+        await interaction.response.defer(thinking=False)
+
+    @discord.ui.button(
+        label="Change Shift Type",
+        style=discord.ButtonStyle.secondary,
+        row=1,
+        disabled=True,
+    )
+    async def change_shift_type(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        await interaction.response.send_modal(
+            modal := CustomModal(
+                "Change Shift Type",
+                [("shift_type", discord.ui.TextInput(label="Shift Type"))],
                 {"ephemeral": True},
             )
+        )
+        timeout = await modal.wait()
+        if timeout:
+            return
 
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="Extra Information",
-                    description=f"**{button_name}** requires extra information, provide it by pressing the button below.",
-                    color=BLANK_COLOR,
-                ),
-                view=view,
-                ephemeral=True,
-            )
-            timeout = await view.wait()
-            if timeout:
-                return
-            provided_information = view.modal.info.value
-            if not provided_information:
-                return
-            dynamic = extra_information[button_name][1]
+        if not modal.shift_type.value:
+            return
 
-            async def static_validation_failure():
-                await view.modal.interaction.followup.send(
+        if modal.shift_type.value.lower() == "default":
+            self.auto_data["shift_type"] = "Default"
+        else:
+            if (
+                selected := {i["name"].lower(): i for i in self.shift_types}.get(
+                    modal.shift_type.value.lower()
+                )
+            ) is None:
+                return await modal.interaction.followup.send(
                     embed=discord.Embed(
-                        title="Incorrect Medium",
-                        description="This medium is invalid. Please try again by clicking the button on the initial embed.",
+                        title="Invalid Shift Type",
+                        description="This Shift Type does not exist in your server.",
                         color=BLANK_COLOR,
                     ),
                     ephemeral=True,
                 )
+            self.auto_data["shift_type"] = selected["name"]
 
-            if not dynamic:
-                if "Role" in button_name:
-                    role = interaction.guild.get_role(int(provided_information))
-                    if not role:
-                        await static_validation_failure()
-                    provided_information = int(provided_information)
+        self.toggle_button_styling()
+        embed = discord.Embed(
+            title="Automatic Shifts", description="", color=BLANK_COLOR
+        )
+        for key, value in self.auto_data.items():
+            embed.description += f"**{key.replace('_', ' ').title()}:** {(value or 'Default') if isinstance(value, str) else ('<:check:1163142000271429662>' if value is True else '<:xmark:1166139967920164915>')}\n"
 
-                if "Reminder" in button_name:
-                    # Fetch reminders
+        embed.set_author(
+            name=interaction.guild.name,
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else "",
+        )
+        await (await self.sustained_interaction.original_response()).edit(
+            embed=embed, view=self
+        )
+        # await interaction.response.defer(thinking=False)
 
-                    reminders = await self.bot.reminders.find_by_id(
-                        interaction.guild.id
-                    )
-                    if not reminders:
-                        return await static_validation_failure()
-
-                    reminders = reminders.get("reminders", [])
-                    if not reminders:
-                        return await static_validation_failure()
-
-                    for reminder in reminders:
-                        if reminder["name"] == provided_information:
-                            break
-                    else:
-                        return await static_validation_failure()
-
-                if "Custom Command" in button_name:
-                    # Fetch Custom Commands
-
-                    custom_commands = await self.bot.custom_commands.find_by_id(
-                        interaction.guild.id
-                    )
-                    custom_commands = (custom_commands or {}).get("commands", [])
-                    if not custom_commands:
-                        return await static_validation_failure()
-
-                    for command in custom_commands:
-                        if command["name"] == provided_information:
-                            break
-                    else:
-                        return await static_validation_failure()
-
-            if "Command (without prefix)" in button_name:
-                # strip possible prefix
-                provided_information = provided_information.strip()
-                if provided_information[0] not in [*string.ascii_lowercase, *string.ascii_uppercase]:
-                    provided_information = provided_information[1:]
-
-            self.action_data["Integrations"].append(
-                {
-                    "IntegrationName": button_name,
-                    "IntegrationID": {
-                        "Execute Custom Command": 0,
-                        "Toggle Reminder": 1,
-                        "Force All Staff Off Duty": 2,
-                        "Send ER:LC Command": 3,
-                        "Send ER:LC Message": 4,
-                        "Send ER:LC Hint": 5,
-                        "Delay": 6,
-                        "Add Role": 7,
-                        "Remove Role": 8,
-                        "Execute ERM Command": 9
-                    }[button_name],
-                    "ExtraInformation": provided_information,
-                }
-            )
-            msg = interaction.message
-            embed = msg.embeds[-1]
-            msg.embeds[-1].description = msg.embeds[-1].description.replace("No Integrations", "").replace("*New Integration*", "")
-
-
-            if (
-                len(
-                    f" **{button_name}:** {provided_information}\n> *New Integration*"
-                )
-                + len(msg.embeds[-1].description)
-            ) > 4000:
-                embed = discord.Embed(
-                    title="\u200b", color=BLANK_COLOR, description="> "
-                )
-                embed.description += f" **{button_name}:** {provided_information}\n> *New Integration*"
-                msg.embeds.append(embed)
-            else:
-                embed.description += f" **{button_name}:** {provided_information}\n> *New Integration*"
-                msg.embeds[len(msg.embeds) - 1] = embed
-
-            await interaction.message.edit(embeds=msg.embeds)
+    @discord.ui.button(
+        label="Finish Configuration", style=discord.ButtonStyle.success, row=2
+    )
+    async def finish(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(thinking=False)
+        await (await self.sustained_interaction.original_response()).delete()
+        sett = await self.bot.settings.find_by_id(interaction.guild.id)
+        if not sett:
+            return
+        if not sett.get("ERLC"):
+            sett["ERLC"] = {}
+        sett["ERLC"]["automatic_shifts"] = self.auto_data
+        await self.bot.settings.update_by_id(sett)

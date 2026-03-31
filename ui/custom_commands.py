@@ -1,9 +1,9 @@
 import discord
 from discord import Interaction
 from utils.constants import BLANK_COLOR
-from misc_buttons import ButtonCustomisation
+from .misc_buttons import ButtonCustomisation
 from ui.custommodal import CustomModal
-from message_customisation import MessageCustomisation
+from .message_customisation import MessageCustomisation
 from utils.utils import generalised_interaction_check_failure
 
 class RemoveCustomCommand(discord.ui.View):
@@ -38,6 +38,81 @@ class CustomCommandSettings(discord.ui.Modal, title="Custom Command Settings"):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=False)
 
+        self.stop()
+class CustomCommandOptionSelect(discord.ui.View):
+    def __init__(self, user_id: int):
+        super().__init__(timeout=900.0)
+        self.user_id = user_id
+        self.modal = None
+        self.value = None
+
+    async def interaction_check(self, interaction: Interaction, /) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        else:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Not Permitted",
+                    description="You are not permitted to interact with these buttons.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
+            return False
+
+    @discord.ui.button(label="Create", style=discord.ButtonStyle.green, row=0)
+    async def create_custom_command(
+        self, interaction: discord.Interaction, _: discord.Button
+    ):
+        self.value = "create"
+        self.modal = CustomModal(
+            "Create a Custom Command",
+            [("name", discord.ui.TextInput(label="Custom Command Name"))],
+            {"thinking": False},
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        if self.modal.name.value is None:
+            return
+
+        self.stop()
+
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.secondary, row=0)
+    async def edit_custom_command(
+        self, interaction: discord.Interaction, _: discord.Button
+    ):
+        self.value = "edit"
+        self.modal = CustomModal(
+            "Edit a Custom Command",
+            [("id", discord.ui.TextInput(label="Custom Command ID"))],
+            {"thinking": False},
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        if self.modal.id.value is None:
+            return
+        self.stop()
+
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, row=0)
+    async def delete_custom_command(
+        self, interaction: discord.Interaction, _: discord.Button
+    ):
+        self.value = "delete"
+        self.modal = CustomModal(
+            "Delete a custom command",
+            [
+                (
+                    "name",
+                    discord.ui.TextInput(
+                        placeholder="Command Name", label="Command Name"
+                    ),
+                )
+            ],
+        )
+        await interaction.response.send_modal(self.modal)
+        await self.modal.wait()
+        if self.modal.name.value is None:
+            return
         self.stop()
 
 class CustomCommandModification(discord.ui.View):

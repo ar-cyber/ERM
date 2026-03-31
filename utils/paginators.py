@@ -7,7 +7,8 @@ import typing
 
 from erm import Bot
 from menus import CustomSelectMenu
-from utils.constants import blank_color
+from utils.constants import BLANK_COLOR
+from utils.utils import generalised_interaction_check_failure
 import asyncio
 import nest_asyncio
 
@@ -166,7 +167,7 @@ class SelectPagination(discord.ui.View):
                 embed=discord.Embed(
                     title="Not Permitted",
                     description="You are not permitted to interact with these buttons.",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 ephemeral=True,
             )
@@ -182,7 +183,7 @@ class SelectPagination(discord.ui.View):
                 embed=discord.Embed(
                     title="Not Permitted",
                     description="You are not permitted to interact with these buttons.",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 ephemeral=True,
             )
@@ -193,7 +194,7 @@ class SelectPagination(discord.ui.View):
             embed=discord.Embed(
                 title="Change Pages",
                 description="What page would you like to change to?",
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             view=(
                 view := CustomSelectMenu(
@@ -221,7 +222,7 @@ class SelectPagination(discord.ui.View):
                 embed=discord.Embed(
                     title="Not Permitted",
                     description="You are not permitted to interact with these buttons.",
-                    color=blank_color,
+                    color=BLANK_COLOR,
                 ),
                 ephemeral=True,
             )
@@ -235,8 +236,57 @@ class SelectPagination(discord.ui.View):
             embed=discord.Embed(
                 title="Not Permitted",
                 description="You are not permitted to interact with these buttons.",
-                color=blank_color,
+                color=BLANK_COLOR,
             ),
             ephemeral=True,
         )
         return False
+
+class MultiPaginatorDropdown(discord.ui.Select):
+    def __init__(self, user_id, options: list, pages: dict, limit=1):
+        self.user_id = user_id
+        self.pages = pages
+        optionList = []
+
+        for option in options:
+            if isinstance(option, str):
+                optionList.append(
+                    discord.SelectOption(
+                        label=option.replace("_", " ").title(), value=option
+                    )
+                )
+            elif isinstance(option, discord.SelectOption):
+                optionList.append(option)
+
+        # The placeholder is what will be shown when no option is chosen
+        # The min and max values indicate we can only pick one of the three options
+        # The options parameter defines the dropdown options. We defined this above
+        super().__init__(
+            placeholder="Select an option",
+            min_values=1,
+            max_values=limit,
+            options=optionList,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id == self.user_id:
+            await interaction.response.defer()
+            await interaction.message.edit(
+                content=f"<:ERMCheck:1111089850720976906>  **{interaction.user.name},** you're currently viewing the **{self.values[0].replace('_', ' ').title()}** commands!",
+                embed=self.pages.get(self.values[0]),
+            )
+        else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            await generalised_interaction_check_failure(interaction.followup)
+            return
+
+
+
+class MultiPaginatorMenu(discord.ui.View):
+    def __init__(self, user_id, options: list, pages: dict):
+        super().__init__(timeout=600.0)
+        self.value = None
+        self.user_id = user_id
+
+        self.add_item(MultiPaginatorDropdown(self.user_id, options, pages))
+

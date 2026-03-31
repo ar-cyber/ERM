@@ -1,5 +1,5 @@
 from discord.ext import commands
-from utils.constants import blank_color
+from utils.constants import BLANK_COLOR
 from utils.utils import config_change_log
 import discord
 
@@ -50,7 +50,7 @@ class callSignCheck(discord.ui.View):
         embed = discord.Embed(
             title="Call Sign Check Status Updated",
             description=f"Call Sign Check is now **{selected_value.capitalize()}**.",
-            color=blank_color
+            color=BLANK_COLOR
         )
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -58,7 +58,7 @@ class callSignCheck(discord.ui.View):
         embed = discord.Embed(
             title="This is a add whitelist UI",
             description="DUMMY",
-            color=blank_color
+            color=BLANK_COLOR
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -66,6 +66,6 @@ class callSignCheck(discord.ui.View):
         embed = discord.Embed(
             title="This is a delete whitelist UI",
             description="DUMMY",
-            color=blank_color
+            color=BLANK_COLOR
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)

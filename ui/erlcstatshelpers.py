@@ -1,7 +1,7 @@
 import discord
 from utils.utils import config_change_log
 from utils.constants import RED_COLOR, GREEN_COLOR
-from custommodal import CustomModal
+from .custommodal import CustomModal
 
 class CreateERLCStats(discord.ui.View):
     def __init__(self, bot, user_id, guild_id):

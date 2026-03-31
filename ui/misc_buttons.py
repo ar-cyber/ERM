@@ -1,6 +1,52 @@
 import discord
 from utils.constants import BLANK_COLOR
-from custommodal import CustomModal
+from .custommodal import CustomModal
+from utils.utils import generalised_interaction_check_failure
+
+class ColouredButton(discord.ui.Button):
+    def __init__(self, user_id, label, style, emoji=None):
+        super().__init__(label=label, style=style, emoji=emoji)
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id == self.user_id:
+            await interaction.response.defer()
+            self.view.value = self.label
+            self.view.stop()
+        else:
+            await generalised_interaction_check_failure(interaction.response)
+            return
+
+
+class CustomExecutionButton(discord.ui.Button):
+    def __init__(self, user_id, label, style, emoji=None, func=None, row=0, disabled=False):
+        """
+
+        A button used for custom execution functions. This is often used to subvert pagination limitations.
+
+        :param user_id: the user who can use this button
+        :param label: the label of the button
+        :param style: style of the button : discord.ButtonStyle
+        :param emoji: emoji of the button
+        :param func: function to be executed when pressed
+        """
+
+        super().__init__(label=label, style=style, emoji=emoji, row=row, disabled=disabled)
+        self.func = func
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id == self.user_id:
+            await self.func(interaction, self)
+        else:
+            return await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Not Permitted",
+                    description="You are not permitted to interact with these buttons.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
 
 
 class CounterButton(discord.ui.Button):
@@ -336,3 +382,59 @@ class ButtonCustomisation(discord.ui.View):
         await interaction.response.defer(thinking=False)
         self.value = True
         self.stop()
+
+
+class ColouredMenu(discord.ui.View):
+    def __init__(self, user_id, buttons: list[str]):
+        super().__init__(timeout=600.0)
+        self.value = None
+        self.user_id = user_id
+        for index, button in enumerate(buttons):
+            if index == 0:
+                self.add_item(
+                    ColouredButton(
+                        self.user_id, button, discord.ButtonStyle.primary, emoji=None
+                    )
+                )
+            else:
+                self.add_item(
+                    ColouredButton(
+                        self.user_id, button, discord.ButtonStyle.secondary, emoji=None
+                    )
+                )
+
+
+class CheckMark(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=600.0)
+        self.value = None
+        self.user_id = user_id
+
+    # When the confirm button is pressed, set the inner value to `True` and
+    # stop the View from listening to more input.
+    # We also send the user an ephemeral message that we're confirming their choice.
+    @discord.ui.button(emoji="✅", style=discord.ButtonStyle.gray)
+    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = True
+        self.stop()
+
+    # This one is similar to the confirmation button except sets the inner value to `False`
+    @discord.ui.button(emoji="❎", style=discord.ButtonStyle.gray)
+    async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = False
+        self.stop()
+
+class LinkView(discord.ui.View):
+    def __init__(self, label: str, url: str):
+        super().__init__(timeout=600.0)
+        self.add_item(discord.ui.Button(label=label, url=url))

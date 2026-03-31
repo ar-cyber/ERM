@@ -302,3 +302,53 @@ class CustomDropdown(discord.ui.Select):
         else:
             await interaction.response.defer(ephemeral=True, thinking=True)
             return await generalised_interaction_check_failure(interaction.followup)
+
+
+
+class MultiDropdown(discord.ui.Select):
+    def __init__(self, user_id, options: list):
+        self.user_id = user_id
+        optionList = []
+
+        for option in options:
+            if isinstance(option, str):
+                optionList.append(
+                    discord.SelectOption(
+                        label=option.replace("_", " ").title(), value=option
+                    )
+                )
+            elif isinstance(option, discord.SelectOption):
+                optionList.append(option)
+
+        # # # # print(t(t(t(t(optionList)
+
+        # The placeholder is what will be shown when no option is chosen
+        # The min and max values indicate we can only pick one of the three options
+        # The options parameter defines the dropdown options. We defined this above
+        super().__init__(
+            placeholder="Select an option",
+            max_values=len(optionList),
+            options=optionList,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id == self.user_id:
+            await interaction.response.defer()
+            if len(self.values) == 1:
+                self.view.value = self.values[0]
+            else:
+                self.view.value = self.values
+            self.view.stop()
+        else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            await generalised_interaction_check_failure(interaction.followup)
+            return
+
+
+class MultiSelectMenu(discord.ui.View):
+    def __init__(self, user_id, options: list):
+        super().__init__(timeout=600.0)
+        self.value = None
+        self.user_id = user_id
+
+        self.add_item(MultiDropdown(self.user_id, options))
