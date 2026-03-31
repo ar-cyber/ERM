@@ -8,31 +8,74 @@ from copy import deepcopy
 
 from erm import check_privacy, generator, is_management
 from utils.constants import blank_color, BLANK_COLOR
+from ui.selects import RoleSelect, ChannelSelect, CustomSelectMenu
+from ui.configuration import *
 from menus import (
-    ChannelSelect,
-    CustomSelectMenu,
-    ERLCIntegrationConfiguration,
-    RoleSelect,
     YesNoColourMenu,
     NextView,
-    BasicConfiguration,
-    LOAConfiguration,
-    ShiftConfiguration,
-    RAConfiguration,
-    PunishmentsConfiguration,
-    GameSecurityConfiguration,
-    GameLoggingConfiguration,
-    AntipingConfiguration,
-    ActivityNoticeManagement,
-    PunishmentManagement,
-    ShiftLoggingManagement,
-    ERMCommandLog,
-    WhitelistVehiclesManagement,
-    PriorityRequestConfiguration,
+
 )
 from ui.MapleCounty import MapleCountyConfiguration
 from utils.paginators import CustomPage, SelectPagination
-from utils.utils import require_settings, generator, log_command_usage
+from utils.utils import require_settings, generator, log_command_usage, generalised_interaction_check_failure
+
+class Setup(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=600.0)
+        self.value = None
+        self.user_id = user_id
+
+    # When the confirm button is pressed, set the inner value to `True` and
+    # stop the View from listening to more input.
+    # We also send the user an ephemeral message that we're confirming their choice.
+    @discord.ui.button(label="All", style=discord.ButtonStyle.green)
+    async def all(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = "all"
+        self.stop()
+
+    # This one is similar to the confirmation button except sets the inner value to `False`
+    @discord.ui.button(label="Punishments", style=discord.ButtonStyle.blurple)
+    async def punishments(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = "punishments"
+        self.stop()
+
+    @discord.ui.button(label="Staff Management", style=discord.ButtonStyle.blurple)
+    async def staff_management(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = "staff management"
+        self.stop()
+
+    @discord.ui.button(label="Shift Management", style=discord.ButtonStyle.blurple)
+    async def shift_management(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if interaction.user.id != self.user_id:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
+        await interaction.response.defer()
+        self.value = "shift management"
+        self.stop()
+
+
 
 
 class Configuration(commands.Cog):
