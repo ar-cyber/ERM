@@ -14,7 +14,7 @@ from aiohttp import ClientConnectorSSLError
 from decouple import config
 from utils.constants import BLANK_COLOR, RED_COLOR
 from utils.utils import error_gen, GuildCheckFailure
-from utils.prc_api import ServerLinkNotFound, ResponseFailure
+from utils.game_api_classes import ServerLinkNotFound, ResponseFailure
 
 
 class OnCommandError(commands.Cog):
@@ -92,6 +92,7 @@ class OnCommandError(commands.Cog):
                             "Your server seems to be offline. If this is incorrect, PRC's API may be down."
                             if error.status_code == 422
                             else "There seems to be issues with the PRC API. Stand by and wait a few minutes before trying again."
+                            "If this error reoccurs even when the conditions are met, please open a ticket and send this error ID: `error_id`"
                         ),
                         color=BLANK_COLOR,
                     )

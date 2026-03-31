@@ -1,8 +1,8 @@
 import discord
-from .selects import RoleSelect
+from .Selects import RoleSelect
 import typing
 import datetime
-from .custommodal import CustomModal, CustomModalView
+from .CustomModals import CustomModal, CustomModalView
 from utils.timestamp import td_format
 from utils.constants import (
     BLANK_COLOR,

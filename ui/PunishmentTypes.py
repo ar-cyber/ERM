@@ -1,7 +1,7 @@
 import discord, typing
 from utils.utils import generalised_interaction_check_failure
 from utils.constants import BLANK_COLOR, GREEN_COLOR
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 from discord import Interaction
 from discord.ext import commands
 class CreatePunishmentType(discord.ui.Modal, title="Create Punishment Type"):

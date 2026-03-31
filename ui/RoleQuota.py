@@ -1,6 +1,6 @@
 import discord, datetime
 from utils.constants import BLANK_COLOR
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 from utils.utils import time_converter
 from utils.timestamp import td_format
 from discord import Interaction

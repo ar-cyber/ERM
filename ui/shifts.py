@@ -8,7 +8,7 @@ from utils.timestamp import td_format
 from utils.constants import BLANK_COLOR, RED_COLOR, GREEN_COLOR, ORANGE_COLOR
 from discord import Interaction
 from bson import ObjectId
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 
 class ShiftMenu(discord.ui.View):
     def __init__(

@@ -1,9 +1,9 @@
 import discord
 from discord import Interaction
 from utils.constants import BLANK_COLOR
-from .misc_buttons import ButtonCustomisation
-from ui.custommodal import CustomModal
-from .message_customisation import MessageCustomisation
+from .MiscButtons import ButtonCustomisation
+from ui.CustomModals import CustomModal
+from .MessageCustomisation import MessageCustomisation
 from utils.utils import generalised_interaction_check_failure
 
 class RemoveCustomCommand(discord.ui.View):

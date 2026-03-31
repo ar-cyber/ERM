@@ -6,12 +6,12 @@ import pytz
 from erm import is_management, is_staff, is_admin
 from utils.advanced import FakeMessage
 from utils.constants import BLANK_COLOR, GREEN_COLOR
-from ui.misc_buttons import *
+from ui.MiscButtons import *
 from discord import app_commands
 from utils.autocompletes import action_autocomplete
 from utils.paginators import CustomPage, SelectPagination
 from utils.utils import get_prefix, interpret_content, interpret_embed, log_command_usage
-from ui.actions import ManageActions
+from ui.Actions import ManageActions
 class Actions(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot

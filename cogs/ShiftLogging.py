@@ -19,7 +19,7 @@ from erm import (
     scope,
     Bot
 )
-from ui.shifts import ShiftMenu, AdministratedShiftMenu
+from ui.Shifts import ShiftMenu, AdministratedShiftMenu
 
 from menus import (
     CustomExecutionButton,

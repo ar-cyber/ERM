@@ -1,6 +1,6 @@
 import discord
 from utils.constants import BLANK_COLOR
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 from utils.utils import generalised_interaction_check_failure
 
 class ColouredButton(discord.ui.Button):

@@ -1,5 +1,5 @@
 import discord
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 
 from utils.utils import generalised_interaction_check_failure
 from utils.constants import GREEN_COLOR, BLANK_COLOR

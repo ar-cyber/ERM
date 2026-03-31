@@ -9,7 +9,7 @@ import aiohttp
 from utils.basedataclass import BaseDataClass
 from datamodels.ServerKeys import ServerKey
 
-from game_api_classes import *
+from .game_api_classes import *
 
 
 class PRCApiClient:

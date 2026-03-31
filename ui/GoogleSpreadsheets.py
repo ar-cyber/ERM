@@ -5,7 +5,7 @@ from utils.constants import (
     SERVER_CONDITIONS as server_conditions,
     CONDITION_OPTIONS as condition_options,
 )
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 import gspread, datetime, asyncio
 from utils.timestamp import td_format
 class RequestGoogleSpreadsheet(discord.ui.View):

@@ -8,8 +8,8 @@ from copy import deepcopy
 
 from erm import check_privacy, generator, is_management
 from utils.constants import BLANK_COLOR, BLANK_COLOR
-from ui.selects import RoleSelect, ChannelSelect, CustomSelectMenu
-from ui.configuration import *
+from ui.Selects import RoleSelect, ChannelSelect, CustomSelectMenu
+from ui.Configuration import *
 from menus import (
     YesNoColourMenu,
     NextView,

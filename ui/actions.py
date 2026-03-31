@@ -1,8 +1,8 @@
 import discord, typing
-from .custommodal import CustomModal, CustomModalView
-from .toolkits import ConditionCreationToolkit
+from .CustomModals import CustomModal, CustomModalView
+from .Toolkits import ConditionCreationToolkit
 from utils.utils import generator
-from .selects import RoleSelect
+from .Selects import RoleSelect
 import string
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 from bson import ObjectId

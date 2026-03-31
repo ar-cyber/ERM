@@ -3,7 +3,7 @@ from utils.utils import generalised_interaction_check_failure
 import random
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 from discord.ext import commands
-from .custommodal import CustomModal
+from .CustomModals import CustomModal
 
 class RobloxUsername(discord.ui.Modal, title="Verification"):
     name = discord.ui.TextInput(

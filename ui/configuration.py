@@ -1,15 +1,15 @@
 # TODO: Refactor this mess at one point. It's better than before
 
 import discord
-from .acv import AssociationConfigurationView
+from .AssociationConfigurationView import AssociationConfigurationView
 from utils.utils import config_change_log, time_converter, generator
 from utils.timestamp import td_format
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 import datetime
-from .custommodal import *
+from .CustomModals import *
 import roblox
 from discord import Interaction
-from .erlcstatshelpers import *
+from .ERLCStatsHelpers import *
 from discord.ext import commands
 
 # HELPERSs
