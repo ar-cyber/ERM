@@ -19,12 +19,12 @@ from erm import (
     scope,
     Bot
 )
+from ui.shifts import ShiftMenu, AdministratedShiftMenu
+
 from menus import (
     CustomExecutionButton,
     CustomSelectMenu,
     RequestGoogleSpreadsheet,
-    ShiftMenu,
-    AdministratedShiftMenu,
 )
 from utils.autocompletes import shift_type_autocomplete, all_shift_type_autocomplete
 from utils.constants import BLANK_COLOR, GREEN_COLOR, ORANGE_COLOR, RED_COLOR
