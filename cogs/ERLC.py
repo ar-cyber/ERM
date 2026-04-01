@@ -922,7 +922,6 @@ class ERLC(commands.Cog):
             v.add_item(row)
             
             cont.add_item(v)
-            print(v)
             if msg is None:
                 msg = await ctx.send(view=cont)
                 v.children[2].children[0].message = msg
