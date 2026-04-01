@@ -307,7 +307,6 @@ class Utility(commands.Cog):
             )
         )
         values = (
-            f"-# {ctx.guild.name if ctx.guild else "DMs"}\n"
             "### Bot Status\n"
         )
 
