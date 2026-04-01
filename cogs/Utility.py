@@ -300,21 +300,16 @@ class Utility(commands.Cog):
     )
     async def ping(self, ctx):
         latency = round(self.bot.latency * 1000)
-        embed = discord.Embed(
-            title="Bot Status",
-            color=BLANK_COLOR,
+        view = discord.ui.Container()
+        section = discord.ui.Section(
+            accessory=discord.ui.Thumbnail(
+                media=ctx.guild.icon.with_format("png").url
+            )
         )
-
-        if ctx.guild is not None:
-            embed.set_author(
-                name=ctx.guild.name,
-                icon_url=ctx.guild.icon,
-            )
-        else:
-            embed.set_author(
-                name=ctx.author.name,
-                icon_url=ctx.author.display_avatar.url,
-            )
+        values = (
+            f"-# {ctx.guild.name if ctx.guild else "DMs"}\n"
+            "### Bot Status\n"
+        )
 
         data = await self.bot.db.command("ping")
 
@@ -325,23 +320,39 @@ class Utility(commands.Cog):
         else:
             status = "Not Connected"
 
-        embed.add_field(
-            name="Information",
-            value=(
-                f"> **Latency:** `{latency}ms`\n"
-                f"> **Uptime:** <t:{int(self.bot.start_time)}:R>\n"
-                f"> **Database Connection:** {status}\n"
-                f"> **Shards:** `{self.bot.shard_count-1 if isinstance(self.bot, commands.AutoShardedBot) else 0}`\n"
+        values += (
+            f"**Information about service**\n"
+            f"> **Latency:** `{latency}ms`\n"
+            f"> **Uptime:** <t:{int(self.bot.start_time)}:R>\n"
+            f"> **Database Connection:** {status}\n"
+            f"> **Shards:** `{self.bot.shard_count-1 if isinstance(self.bot, commands.AutoShardedBot) else 0}`\n"
+        )
+        text = section.add_item(
+            discord.ui.TextDisplay(
+                values
+            )
+        )
+        if latency > 75 and latency < 200:
+            style = discord.ButtonStyle.secondary
+        elif latency >= 200:
+            style = discord.ButtonStyle.danger
+        else:
+            style = discord.ButtonStyle.green
+        buttons = discord.ui.ActionRow(
+            discord.ui.Button(
+                label = f"{latency}ms",
+                style = style,
+                disabled=True
             ),
-            inline=False,
+            discord.ui.Button(
+                label = f"Shard {ctx.guild.shard_id if ctx.guild and isinstance(self.bot, commands.AutoShardedBot) else 0}/{self.bot.shard_count-1 if isinstance(self.bot, commands.AutoShardedBot) else 0}",
+                disabled=True
+            )
         )
+        view.add_item(section).add_item(discord.ui.Separator())
+        view.add_item(buttons)
 
-        embed.set_footer(
-            text=f"Shard {ctx.guild.shard_id if ctx.guild and isinstance(self.bot, commands.AutoShardedBot) else 0}/{self.bot.shard_count-1 if isinstance(self.bot, commands.AutoShardedBot) else 0}"
-        )
-        embed.timestamp = datetime.datetime.utcnow()
-        embed.set_thumbnail(url=ctx.guild.icon)
-        await ctx.send(embed=embed)
+        await ctx.send(view=discord.ui.LayoutView().add_item(view))
 
     @commands.hybrid_command(
         name="modpanel",

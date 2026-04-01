@@ -103,6 +103,7 @@ class ShiftLogging(commands.Cog):
                                         description="The shift type provided is not valid.",
                                         color=BLANK_COLOR),
                     view=view,
+                    _cv2_skip=True
                 )
                 timeout = await view.wait()
                 if timeout:
@@ -216,6 +217,7 @@ class ShiftLogging(commands.Cog):
                             ],
                         )
                     ),
+                    _cv2_skip=True
                 )
                 timeout = await view.wait()
                 if timeout:
@@ -419,6 +421,7 @@ class ShiftLogging(commands.Cog):
                             ],
                         )
                     ),
+                    _cv2_skip=True
                 )
                 timeout = await view.wait()
                 if timeout:
@@ -674,6 +677,7 @@ class ShiftLogging(commands.Cog):
                             color=BLANK_COLOR,
                         ),
                         view=view,
+                        _cv2_skip=True
                     )
 
                     timeout = await view.wait()
@@ -894,6 +898,7 @@ class ShiftLogging(commands.Cog):
                             color=BLANK_COLOR,
                         ),
                         view=view,
+                        _cv2_skip=True
                     )
 
                     timeout = await view.wait()
@@ -1385,6 +1390,7 @@ class ShiftLogging(commands.Cog):
                             ],
                         )
                     ),
+                    _cv2_skip=True
                 )
                 timeout = await view.wait()
                 if timeout:
