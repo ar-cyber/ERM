@@ -8,7 +8,6 @@ from menus import (
     AcknowledgeMenu,
     YesNoExpandedMenu,
     CustomModalView,
-    CustomSelectMenu,
     MultiSelectMenu,
     RoleSelect,
     ExpandedRoleSelect,
@@ -16,6 +15,7 @@ from menus import (
     EmbedCustomisation,
     ChannelSelect,
 )
+from ui.Selects import CustomSelectMenu, CustomDropdown
 from erm import Bot
 from utils.constants import base_infraction_type
 from utils.autocompletes import infraction_type_autocomplete_special
@@ -135,29 +135,42 @@ class StaffConduct(commands.Cog):
                 discord.SelectOption(label = "Add Item", value = "add", emoji="<:ERMAdd:1113207792854106173>"),
                 
             ] + ac
-            embed = discord.Embed(
-                title = "Select an infraction type",
-                description=f"**{ctx.author.name},** select an infraction type, add an infraction type, access global settings, or end this configuration session by using the drop-down below."
-            )
+            
             values += [discord.SelectOption(label = "Global Settings", value = "global", emoji = "<:ERMLog:1113210855891423302>"), discord.SelectOption(label = "Finish", value = "finish", emoji = successEmoji)]
+            cont = discord.ui.Container()
+
+            async def all_callback(interaction):
+                await interaction.response.defer()
+
+            cont.add_item(
+                discord.ui.TextDisplay(
+                    (
+                        "### Select an Infration Type\n"
+                        "Select an option below to configure infraction types or change the global settings for **Staff Conduct**"
+                    )
+                )
+            ).add_item(discord.ui.Separator()).add_item(
+                discord.ui.ActionRow(
+                    CustomDropdown(
+                        ctx.author.id,
+                        options=values,
+                        
+                    )
+                )
+            )
             await message.edit(
                 content=None,
-                embed=embed,
                 view=(
-                    view := CustomSelectMenu(
-                        ctx.author.id,
-                        options = values,
-                        limit=1
-                    )
-                ),
+                    view := discord.ui.LayoutView().add_item(cont)
+                )
             )
-            timeout = await view.wait()
-            if timeout:
-                return
+            await view.wait()
+            print(view.value)
+
             if view.value == "add":
                 await message.edit(
-                    content=f"{pendingEmoji} **{ctx.author.name},** click the button below!",
-                    embed=None,
+                    content=None,
+                    embed=discord.Embed(title = "Create Infraction Type", description=f"{pendingEmoji} **{ctx.author.name},** click the button below!"),
                     view=(
                         view := CustomModalView(
                             ctx.author.id,
@@ -178,7 +191,7 @@ class StaffConduct(commands.Cog):
                 await view.wait()
                 if any(type["name"] == view.modal.type_name.value for type in guild_settings["infractions"]["infractions"]):
                     return await message.edit(
-                        embed = discord.Embed(title = "Already exists", description="**{ctx.author.name},** this infraction type already exists"), view=None
+                        embed = discord.Embed(title = "Already exists", description=f"**{ctx.author.name},** this infraction type already exists"), view=None
                     )
                 try:
                     infraction_type_name = view.modal.type_name.value
@@ -225,7 +238,7 @@ class StaffConduct(commands.Cog):
                         ),
                     )
                     await view.wait()
-                    match view.value:
+                    match view.children[0].component.value:
                         case "manager":
                             await message.edit(
                                 embed=None,
@@ -257,15 +270,18 @@ class StaffConduct(commands.Cog):
             index = guild_settings["infractions"]["infractions"].index(base_type)
             # This continuously iterates until they're done with this type. The view will probably expire before then so oh well...
             while True:
-                embed = discord.Embed(
-                    title = "Edit infraction type",
-                    description = "Select from the below list of options in order to customise this type."
-                )
-                await message.edit(
-                    content=None,
-                    embed=embed,
-                    view=(
-                        view := CustomSelectMenu(
+                cont = discord.ui.Container()
+                cont.add_item(
+                    discord.ui.TextDisplay(
+                        (
+                            "### Edit Infraction Type\n"
+                            f"Please select from the below list to edit the infraction type `{infraction_type_name}`"
+                        )
+                    )
+                ).add_item(discord.ui.Separator())
+                cont.add_item(
+                    discord.ui.ActionRow(
+                        CustomDropdown(
                             ctx.author.id,
                             [
                                 discord.SelectOption(
@@ -306,7 +322,12 @@ class StaffConduct(commands.Cog):
                                     emoji = successEmoji
                                 )
                             ],
-                        )
+                        ))
+                )
+                await message.edit(
+                    content=None,
+                    view=(
+                        view := discord.ui.LayoutView().add_item(cont)
                     ),
                 )
 
@@ -322,6 +343,7 @@ class StaffConduct(commands.Cog):
                 # lol
 
                 # Idk who's idea it was to use an if chain here but now it's match-case
+                # I have to fix all of this but I can do that tomorrow
                 match value:
                     case "add_role":
                         await message.edit(
