@@ -284,7 +284,8 @@ class Bot(commands.AutoShardedBot):
             bot.is_synced = True
 
             # we do this so the bot can get a cache of things before we spam discord with fetches
-            asyncio.create_task(start_tasks(self))
+            if config("TASKS_ENABLED", "TRUE").upper() == "TRUE":
+                asyncio.create_task(start_tasks(self))
             
             async for document in self.views.db.find({}):
                 if document["view_type"] == "LOAMenu":

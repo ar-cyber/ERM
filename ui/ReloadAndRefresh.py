@@ -54,6 +54,18 @@ class RefreshConfirmation(discord.ui.View):
         except:
             pass
 
+class ReloadButton(discord.ui.Button):
+    def __init__(self, bot, user_id: int, custom_callback: typing.Callable, args: list):
+        super().__init__(label="Reload",emoji="<:lastupdated:1176999148084535326>",style=discord.ButtonStyle.secondary,)
+        self.bot = bot
+        self.user_id = user_id
+        self.custom_callback = custom_callback
+        self.callback_args = args
+        self.message = None
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        await self.custom_callback(*self.callback_args)
 
 class ReloadView(discord.ui.View):
     def __init__(self, bot, user_id: int, custom_callback: typing.Callable, args: list):

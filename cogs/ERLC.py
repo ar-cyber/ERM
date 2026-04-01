@@ -5,6 +5,7 @@ import re
 import discord
 import roblox
 from discord.ext import commands
+from erm import Bot
 from utils.autocompletes import erlc_group_autocomplete, erlc_players_autocomplete
 from roblox.thumbnails import AvatarThumbnailType 
 
@@ -13,6 +14,7 @@ from typing import List
 from erm import admin_check, is_staff, is_management, management_predicate
 from utils.paginators import CustomPage, SelectPagination
 from menus import CustomModal, ReloadView, RefreshConfirmation, RiskyUsersMenu, CustomExecutionButton
+from ui.ReloadAndRefresh import ReloadButton
 import copy
 from utils.constants import *
 from utils.prc_api import (
@@ -27,7 +29,7 @@ import utils.prc_api as prc_api
 from utils.utils import get_discord_by_roblox, get_roblox_by_username, log_command_usage, secure_logging, staff_check
 from discord import app_commands
 import typing
-
+from roblox.users import User
 
 class ERLC(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -870,49 +872,66 @@ class ERLC(commands.Cog):
             )  # this only returns the count
             client = roblox.Client()
 
-            embed1 = discord.Embed(title=f"{status.name}", color=BLANK_COLOR)
-            embed1.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
-            embed1.add_field(
-                name="Basic Info",
-                value=(
+            cont = discord.ui.LayoutView()
+            v = discord.ui.Container()
+            view = discord.ui.Section(accessory=discord.ui.Thumbnail(
+                    media=ctx.guild.icon.with_format("png").url
+             ))
+            try:
+                owner = await client.get_user(status.owner_id)
+                owner=owner.name
+            except:
+                owner = "N/A"
+            try:
+                co_owners = [user for user in await client.get_users(status.co_owner_ids, expand=False)]
+            except:
+                co_owners = []
+            body1 = discord.ui.TextDisplay(
+                (
+                    f"-# {ctx.guild.name}\n"
+                    f"### {status.name}\n"
+                    f"**Basic Info**\n"
                     f"> **Join Code:** [{status.join_key}](https://policeroleplay.community/join/{status.join_key})\n"
                     f"> **Current Players:** {status.current_players}/{status.max_players}\n"
                     f"> **Queue:** {queue}\n"
-                ),
-                inline=False,
-            )
-            embed1.add_field(
-                name="Server Ownership",
-                value=(
-                    f"> **Owner:** [{(await client.get_user(status.owner_id)).name}](https://roblox.com/users/{status.owner_id}/profile)\n"
-                    f"> **Co-Owners:** {f', '.join([f'[{user.name}](https://roblox.com/users/{user.id}/profile)' for user in await client.get_users(status.co_owner_ids, expand=False)])}"
-                ),
-                inline=False,
-            )
-
-            embed1.add_field(
-                name="Staff Statistics",
-                value=(
+                    f"**Server Ownership**\n"
+                    f"> **Owner:** [{owner}](https://roblox.com/users/{status.owner_id}/profile)\n"
+                    f"> **Co-Owners:** {f', '.join([f'[{user.name}](https://roblox.com/users/{user.id}/profile)' for user in co_owners])}\n"
+                    f"**Staff Statistics**\n"
                     f"> **Moderators:** {len(list(filter(lambda x: x.permission == 'Server Moderator', players)))}\n"
                     f"> **Administrators:** {len(list(filter(lambda x: x.permission == 'Server Administrator', players)))}\n"
                     f"> **Staff In-Game:** {len(list(filter(lambda x: x.permission != 'Normal', players)))}\n"
                     f"> **Staff Clocked In:** {await self.bot.shift_management.shifts.db.count_documents({'Guild': guild_id, 'EndEpoch': 0})}"
                 ),
-                inline=False,
             )
-
-            if msg is None:
-                view = ReloadView(
+            view.add_item(body1)
+            v.add_item(view).add_item(discord.ui.Separator())
+            row = discord.ui.ActionRow(
+                ReloadButton(
                     self.bot,
                     ctx.author.id,
                     operate_and_reload_serverinfo,
                     [None, guild_id],
+                ),
+                discord.ui.Button(
+                    label = "Join Server",
+                    url=f"https://policeroleplay.community/join/{status.join_key}"
                 )
-                msg = await ctx.send(embed=embed1, view=view)
-                view.message = msg
-                view.callback_args[0] = msg
+            )
+            
+            v.add_item(row)
+            
+            cont.add_item(v)
+            print(v)
+            if msg is None:
+                msg = await ctx.send(view=cont)
+                v.children[2].children[0].message = msg
+                v.children[2].children[0].callback_args[0] = msg
             else:
-                await msg.edit(embed=embed1)
+                v.remove_item(row)
+                cont = discord.ui.LayoutView().add_item(v)
+                await msg.edit(view=cont)
+                del cont
 
         await operate_and_reload_serverinfo(None, guild_id)
 
@@ -925,8 +944,7 @@ class ERLC(commands.Cog):
         guild_id = int(ctx.guild.id)
         status: ServerStatus = await self.bot.prc_api.get_server_status(guild_id)
         players: list[Player] = await self.bot.prc_api.get_server_players(guild_id)
-        embed2 = discord.Embed(color=BLANK_COLOR)
-        embed2.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
+
         actual_players = []
         key_maps = {}
         for item in players:
@@ -937,7 +955,12 @@ class ERLC(commands.Cog):
                     key_maps[item.permission] = [item]
                 else:
                     key_maps[item.permission].append(item)
-
+        view = discord.ui.LayoutView()
+        c = discord.ui.Container()
+        cont = discord.ui.Section(accessory=discord.ui.Thumbnail(
+            media=ctx.guild.icon.with_format("png").url
+        ))
+        
         new_maps = ["Server Owners", "Server Administrator", "Server Moderator"]
         new_vals = [
             key_maps.get("Server Owner", []) + key_maps.get("Server Co-Owner", []),
@@ -945,7 +968,11 @@ class ERLC(commands.Cog):
             key_maps.get("Server Moderator", []),
         ]
         new_keymap = dict(zip(new_maps, new_vals))
-        embed2.title = f"Online Staff Members [{sum([len(i) for i in new_vals])}]"
+        values = (
+            f"-# {ctx.guild.name}\n"
+            f"### Online Staff Members [{sum([len(i) for i in new_vals])}]\n"
+        )
+
         for key, value in new_keymap.items():
             if value:
                 value_length = len(value)
@@ -955,13 +982,24 @@ class ERLC(commands.Cog):
                         for plr in value
                     ]
                 )
-                embed2.add_field(
-                    name=f"{key} [{value_length}]", value=value, inline=False
-                )
+                values += (
+                        f"**{key} [{value_length}]**\n"
+                        f"{value}\n")
+                
 
-        if len(embed2.fields) == 0:
-            embed2.description = "> There are no online staff members."
-        await ctx.send(embed=embed2)
+                # embed2.add_field(
+                #     name=f"{key} [{value_length}]", value=value, inline=False
+                # )
+
+        if sum([len(i) for i in new_vals]) == 0:
+            values += "> There are no online staff members."
+        cont.add_item(
+            discord.ui.TextDisplay(
+                values
+            )
+        )
+        view.add_item(c.add_item(cont))
+        await ctx.send(view=view)
 
     @server.command(name="kills", description="See the Kill Logs of your server.")
     @is_staff()
