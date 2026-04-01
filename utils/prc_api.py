@@ -217,8 +217,11 @@ class PRCApiClient:
             if minimal:
                 return len(response_json)
             new_list = []
-            for user in await self.bot.roblox.get_users(response_json, expand=False):
-                new_list.append(Player(username=user.name, id=user.id))
+            try:
+                for user in await self.bot.roblox.get_users(response_json, expand=False):
+                    new_list.append(Player(username=user.name, id=user.id))
+            except:
+                pass
             return new_list
         else:
             raise ResponseFailure(status_code=status_code, json_data=response_json)
