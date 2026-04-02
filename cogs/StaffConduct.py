@@ -9,13 +9,13 @@ from menus import (
     YesNoExpandedMenu,
     CustomModalView,
     MultiSelectMenu,
-    RoleSelect,
     ExpandedRoleSelect,
     MessageCustomisation,
     EmbedCustomisation,
     ChannelSelect,
 )
-from ui.Selects import CustomSelectMenu, CustomDropdown
+from ui.Selects import CustomSelectMenu, CustomDropdown, SimpleRoleSelect, RoleSelectFinish, SimpleTextChannelSelect, BulkRoleSelectFinish, CustomDropdownInt
+from ui.CustomModals import CustomModalButton
 from erm import Bot
 from utils.constants import base_infraction_type
 from utils.autocompletes import infraction_type_autocomplete_special
@@ -110,7 +110,7 @@ class StaffConduct(commands.Cog):
             )
             embed.add_field(
                 name="<:ERMList:1111099396990435428> If I have a Strike 1/2/3 system, do I have them as separate types?",
-                value=">>> Curerently, you do have to manually do this yourself, however, it is coming soon!",
+                value=">>> You can use the infraction counting feature for ERM to count the strikes automatically!",
                 inline=False,
             )
             embed.set_footer(
@@ -130,17 +130,13 @@ class StaffConduct(commands.Cog):
             if timeout or not view.value:
                 return
         while True:
-            ac = await infraction_type_autocomplete_special(ctx.guild.id, bot)
             values = [
-                discord.SelectOption(label = "Add Item", value = "add", emoji="<:ERMAdd:1113207792854106173>"),
-                
-            ] + ac
-            
-            values += [discord.SelectOption(label = "Global Settings", value = "global", emoji = "<:ERMLog:1113210855891423302>"), discord.SelectOption(label = "Finish", value = "finish", emoji = successEmoji)]
+                discord.SelectOption(label = "Add Item", value = "add", emoji="<:ERMAdd:1113207792854106173>")
+            ] + [discord.SelectOption(label = infraction["name"], value=infraction["name"], emoji="<:ERMArrow:1120534523181027358>") for infraction in guild_settings["infractions"]["infractions"]
+            ] + [discord.SelectOption(label = "Global Settings", value = "global", emoji = "<:ERMLog:1113210855891423302>"), 
+                discord.SelectOption(label = "Finish", value = "finish", emoji = successEmoji)]
             cont = discord.ui.Container()
 
-            async def all_callback(interaction):
-                await interaction.response.defer()
 
             cont.add_item(
                 discord.ui.TextDisplay(
@@ -165,60 +161,75 @@ class StaffConduct(commands.Cog):
                 )
             )
             await view.wait()
-            print(view.value)
 
             if view.value == "add":
+                cont = discord.ui.Container()
+                cont.add_item(
+                    discord.ui.TextDisplay(
+                    (
+                        "### Create Infraction Type\n"
+                        "Click the button below to configure infractions"
+                    ))
+                ).add_item(discord.ui.Separator())
+                modal = CustomModalButton(
+                    ctx.author.id,
+                    "Add an Infraction Type",
+                    "Add Infraction Type",
+                    [
+                        (
+                            "type_name",
+                            discord.ui.TextInput(
+                                placeholder="e.g. Strike, Termination, Suspension, Blacklist",
+                                label="Name of Infraction Type",
+                            ),
+                        )
+                    ],
+                )
+                cont.add_item(discord.ui.ActionRow(modal))
                 await message.edit(
                     content=None,
-                    embed=discord.Embed(title = "Create Infraction Type", description=f"{pendingEmoji} **{ctx.author.name},** click the button below!"),
+                    embed=None,
                     view=(
-                        view := CustomModalView(
-                            ctx.author.id,
-                            "Add an Infraction Type",
-                            "Add Infraction Type",
-                            [
-                                (
-                                    "type_name",
-                                    discord.ui.TextInput(
-                                        placeholder="e.g. Strike, Termination, Suspension, Blacklist",
-                                        label="Name of Infraction Type",
-                                    ),
-                                )
-                            ],
-                        )
+                        view := discord.ui.LayoutView().add_item(cont)
                     ),
                 )
                 await view.wait()
-                if any(type["name"] == view.modal.type_name.value for type in guild_settings["infractions"]["infractions"]):
+                if any(type["name"] == view.values[0] for type in guild_settings["infractions"]["infractions"]):
                     return await message.edit(
                         embed = discord.Embed(title = "Already exists", description=f"**{ctx.author.name},** this infraction type already exists"), view=None
                     )
-                try:
-                    infraction_type_name = view.modal.type_name.value
-                except AttributeError:
-                    return
+                infraction_type_name = view.values[0]
+
                 base_type = base_infraction_type
                 base_type["name"] = infraction_type_name
                 guild_settings["infractions"]["infractions"].append(base_type)
-                view.value = base_type["name"]
+                await message.edit(
+                    embed=discord.Embed(
+                        title = "Created Infraction",
+                        description=f"Created infraction type {infraction_type_name}"
+                    )
+                )
+                continue
                 
             elif view.value == "finish":
                 await message.edit(
-                    content=f"{successEmoji} **{ctx.author.name},** have a great day!",
-                    embed=None,
+                    content=None,
+                    embed=discord.Embed(title = "Finished", description="Have a great day!"),
                     view=None
                 )
                 return
             elif view.value == "global":
                 while True:
-                    embed = discord.Embed(
-                        title = "Edit global settings",
-                        description = f"**{ctx.author.name},** use the dropdowns below to select a part of the infractions module to change in your server."
-                    )
-                    await message.edit(
-                        embed=embed,
-                        view=(
-                            view := CustomSelectMenu(
+                    cont = discord.ui.Container()
+                    cont.add_item(discord.ui.TextDisplay(
+                        (
+                            "### Global Settings\n"
+                            "Select an option below to change the global settings for **Staff Conduct**"
+                        )
+                    )).add_item(discord.ui.Separator())
+                    cont.add_item(
+                        discord.ui.ActionRow(
+                            CustomDropdown(
                                 ctx.author.id,
                                 [
                                     discord.SelectOption(
@@ -235,15 +246,34 @@ class StaffConduct(commands.Cog):
                                     )
                                 ],
                             )
+                        )
+                    )
+                    await message.edit(
+                        embed=None,
+                        view=(
+                            view := discord.ui.LayoutView().add_item(cont)
                         ),
                     )
                     await view.wait()
-                    match view.children[0].component.value:
+                    match view.value:
                         case "manager":
+                            cont = discord.ui.Container()
+                            cont.add_item(discord.ui.TextDisplay(
+                                "### Infraction Manager Roles\n"
+                                "Select roles below for the roles that are allowed to use infraction manager features."
+                            )).add_item(discord.ui.Separator())
+                            rs = SimpleRoleSelect(limit=25, default_values=[discord.SelectDefaultValue(id=role, type=discord.SelectDefaultValueType.role) for role in guild_settings["infractions"].get("manager_roles", [])])
+                            cont.add_item(
+                                discord.ui.ActionRow(rs)
+                            
+                            ).add_item(
+                                discord.ui.ActionRow(RoleSelectFinish(ctx.author.id, rs))
+                            )
+                            
                             await message.edit(
                                 embed=None,
-                                content=f"{pendingEmoji} **{ctx.author.name},** what roles do you wish are allowed to use the **Staff Conduct module**?",
-                                view=(view := ExpandedRoleSelect(ctx.author.id, limit=25)),
+                                content=None,
+                                view=(view := discord.ui.LayoutView().add_item(cont)),
                             )
                             await view.wait()
                             addRoleList = [role.id for role in view.value]
@@ -255,11 +285,12 @@ class StaffConduct(commands.Cog):
                                 guild_settings["_id"] = ctx.guild.id
                                 await self.bot.settings.update(guild_settings)
                                 logging.warning("_id failure")
-                            return await message.edit(
-                                content=f"{successEmoji} **Global Settings** have been successfully submitted!",
-                                view=None,
+                            await message.edit(
+                                content=None,
+                                view=discord.ui.LayoutView().add_item(discord.ui.Container().add_item(discord.ui.TextDisplay(f"### Submitted\nThe **Global Settings** have been submitted."))),
                                 embed=None,
                             )
+                            break
                             
                         
             else:
@@ -308,7 +339,12 @@ class StaffConduct(commands.Cog):
                                     emoji="<:ERMLog:1113210855891423302>",
                                     value="escalate",
                                 ),
-                                
+                                discord.SelectOption(
+                                    label = "Role Counting",
+                                    description="Count the number and assign diferent roles for each count!",
+                                    emoji="<:ERMLog:1113210855891423302>",
+                                    value="count"
+                                ),
                                 discord.SelectOption(
                                     label="Delete",
                                     description="Delete this infraction type",
@@ -346,72 +382,117 @@ class StaffConduct(commands.Cog):
                 # I have to fix all of this but I can do that tomorrow
                 match value:
                     case "add_role":
+                        cont = discord.ui.Container()
+                        cont.add_item(
+                            discord.ui.TextDisplay(
+                                (
+                                    "### Add Roles\n"
+                                    f"Please specify the roles to be added when a user receives an infraction with the type of **{infraction_type_name}**"
+                                )
+                            )
+                        ).add_item(discord.ui.Separator())
+                        rs = SimpleRoleSelect(limit=20, default_values=[discord.SelectDefaultValue(id=role, type=discord.SelectDefaultValueType.role) for role in base_type["role_changes"]["add"].get("roles", [])])
+                        cont.add_item(
+                            discord.ui.ActionRow(rs)
+                        ).add_item(
+                            discord.ui.ActionRow(RoleSelectFinish(ctx.author.id, rs))
+                        )
                         await message.edit(
-                            content=f"{pendingEmoji} **{ctx.author.name},** what roles do you wish to be assigned when \
-                        a user receives a **{infraction_type_name}**?",
-                            embed=None,
-                            view=(view := ExpandedRoleSelect(ctx.author.id, limit=25)),
+                            view=(view := discord.ui.LayoutView().add_item(cont))
                         )
                         await view.wait()
                         addRoleList = [role.id for role in view.value]
                         base_type["role_changes"]["add"]["roles"] = addRoleList
                     case "remove_role":  # Add to Database. I'VE ADDED IT TO DATABASE BUDDY
+                        cont = discord.ui.Container()
+                        cont.add_item(
+                            discord.ui.TextDisplay(
+                                (
+                                    "### Remove Roles\n"
+                                    f"Please specify the roles to be removed when a user receives an infraction with the type of **{infraction_type_name}**"
+                                )
+                            )
+                        ).add_item(discord.ui.Separator())
+                        rs = SimpleRoleSelect(limit=20, default_values=[discord.SelectDefaultValue(id=role, type=discord.SelectDefaultValueType.role) for role in base_type["role_changes"]["remove"].get("roles", [])])
+                        cont.add_item(
+                            discord.ui.ActionRow(rs)
+                        ).add_item(
+                            discord.ui.ActionRow(RoleSelectFinish(ctx.author.id, rs))
+                        )
                         await message.edit(
-                            content=f"{pendingEmoji} **{ctx.author.name},** what roles do you wish to be removed when \
-    a user receives a **{infraction_type_name}**?",
-                            view=(view := ExpandedRoleSelect(ctx.author.id, limit=25)),
+                            content=None,
+                            view=(view := discord.ui.LayoutView().add_item(cont)),
                             embed=None
                         )
                         await view.wait()
                         removeRoleList = [role.id for role in view.value]
-                        base_type["role_changes"]["add"]["roles"] = removeRoleList
+                        base_type["role_changes"]["remove"]["roles"] = removeRoleList
 
                     case "send_message":
                         constant_msg_data = None
+                        cont = discord.ui.Container()
+                        cont.add_item(
+                            discord.ui.TextDisplay((
+                                "### Select Channel\n"
+                                "Select the channel to send the message to"
+                                )
+                            )
+                        ).add_item(
+                            discord.ui.Separator()
+                        )
+                        cs = SimpleTextChannelSelect(limit=1, default_values=[discord.SelectDefaultValue(id=channel, type=discord.SelectDefaultValueType.channel) for channel in base_type["notifications"]["public"].get("channel", [])])
+                        cont.add_item(
+                            discord.ui.ActionRow(cs)
+                        ).add_item(
+                            discord.ui.ActionRow(RoleSelectFinish(ctx.author.id, cs))
+                        )
                         # Get Channel(s) to Send Message To
                         await message.edit(
-                            content=f"{pendingEmoji} **{ctx.author.name},** please select the channel(s) you wish to send a message to upon a user receiving a **{infraction_type_name}**.",
-                            view=(view := ChannelSelect(ctx.author.id, limit=5)),
+                            content=None, #f"{pendingEmoji} **{ctx.author.name},** please select the channel(s) you wish to send a message to upon a user receiving a **{infraction_type_name}**.",
+                            view=(view := discord.ui.LayoutView().add_item(cont)),
                             embed=None
                         )
                         await view.wait()
-
+                        base_type["notifications"]["public"]["channel"] = [view.value[0].id]
                         # Get Custom Message
                         view = MessageCustomisation(
-                            ctx.author.id, persist=True, external=True
+                            ctx.author.id, persist=True, external=False
                         )
-                        await message.edit(content=None, view=view)
+                        await message.edit(embed=discord.Embed(title='New Message',description="So I can help you, I need to you refer to the new message below."))
+                        n_message: discord.Message = await message.reply(content=None, view=view, _cv2_skip=True)
                         await view.wait()
                         
-                        updated_message = await ctx.channel.fetch_message(message.id)
+                        updated_message = await ctx.channel.fetch_message(n_message.id)
                         message_data = {
                             "content": (
                                 updated_message.content
-                                if updated_message.content
-                                != f"{pendingEmoji} **{ctx.author.name},** please set the message you wish to send a user upon receiving a **{infraction_type_name}**."
-                                else ""
                             ),
                             "embeds": [i.to_dict() for i in updated_message.embeds],
                         }
                         yesNoValue = YesNoMenu(ctx.author.id)
-                        await message.edit(
+                        # Unfortunately we can't use CV2 for these because embeds are custom
+                        await n_message.edit(
                             content=f"{pendingEmoji} **{ctx.author.name},** please confirm below that you wish to use the content shown below.\n\n{message_data['content']}",
                             embeds=[
                                 discord.Embed.from_dict(i)
                                 for i in message_data["embeds"]
                             ],
                             view=yesNoValue,
+                            _cv2_skip=True
                         )
                         await yesNoValue.wait()
                         if yesNoValue.value:
-                            break
-                        elif not yesNoValue.value:
                             constant_msg_data = message_data
-                        base_type["notifications"]["dm"] = constant_msg_data
-                        base_type["notifications"]["dm"]["enabled"] = True
+                            pass
+                        elif not yesNoValue.value:
+                            break
+                        
+                        base_type["notifications"]["public"]["message_data"] = constant_msg_data
+                        base_type["notifications"]["public"]["enabled"] = True
+                        await n_message.delete()
 
                     case "escalate":
-                        types = await infraction_type_autocomplete_special(ctx.guild.id, bot) + [discord.SelectOption(label="Back", description="Head back to the previous menu", value="back")]
+                        types = [discord.SelectOption(label = infraction["name"], value=infraction["name"], emoji="<:ERMArrow:1120534523181027358>") for infraction in guild_settings["infractions"]["infractions"]] + [discord.SelectOption(label="Back", description="Head back to the previous menu", value="back")]
                         type = infraction_type_name
                         while type == infraction_type_name:
                             await message.edit(
@@ -475,6 +556,72 @@ class StaffConduct(commands.Cog):
                             "threshold": threshold,
                             "next_infraction": type
                         }
+                    case "count":
+                        cont = discord.ui.Container()
+                        cont.add_item(
+                            discord.ui.TextDisplay(
+                                (
+                                    "### Infraction Counting\n"
+                                    "With ERM, you can select up to three roles that are given at different offence counts. This allows you to assign different roles without having to create types for all of them.\n\n"
+                                    "**This feature works best with escalations. Escalations __will not apply__ if the infraction is in a count**\n\n"
+                                    "### Options\n"
+                                    "**Enabled**: Enable the infraction counting system.\n"
+                                    "**Count 1 Role**: The role to give on the first offence.\n"
+                                    "**Count 2 Role**: The role to give on the second offence.\n"
+                                    "**Count 3 Role**: The role to give on the third offence."
+                                )
+                            )
+                        ).add_item(discord.ui.Separator())
+                        if not base_type.get("counting"):
+                            base_type["counting"] = {}
+                        scont = discord.ui.Container()
+                        enabled = CustomDropdownInt(
+                            [discord.SelectOption(label="Enabled", description="Enable the counting system", value="yes"), discord.SelectOption(label="Disabled", description="Disabled the counting system", value="no")]
+                        )
+                        rs1 = SimpleRoleSelect(
+                            1, placeholder="Select the first role", default_values = [discord.SelectDefaultValue(type=discord.SelectDefaultValueType.role, id=base_type.get("counting", {}).get("offence_1", 0))], 
+                        )
+                        rs2 = SimpleRoleSelect(
+                            1, placeholder="Select the second role", default_values = [discord.SelectDefaultValue(type=discord.SelectDefaultValueType.role, id=base_type.get("counting", {}).get("offence_2", 0))], 
+                        )
+                        rs3 = SimpleRoleSelect(
+                            1, placeholder="Select the third role", default_values = [discord.SelectDefaultValue(type=discord.SelectDefaultValueType.role, id=base_type.get("counting", {}).get("offence_3", 0))], 
+                        )
+                        scont.add_item(
+                            discord.ui.ActionRow(
+                                enabled
+                            )
+                        )
+                        scont.add_item(
+                            discord.ui.ActionRow(
+                                rs1
+                            )
+                        ).add_item(
+                            discord.ui.ActionRow(
+                                rs2
+                            )
+                        ).add_item(
+                            discord.ui.ActionRow(
+                                rs3
+                            )
+                        ).add_item(
+                            discord.ui.ActionRow(
+                                BulkRoleSelectFinish(ctx.author.id, [enabled, rs1, rs2, rs3])
+                            )
+                        )
+                        await message.edit(
+                            view=(
+                                view := discord.ui.LayoutView(timeout=300).add_item(cont).add_item(scont)
+                            )
+                        )
+
+                        await view.wait()
+                        enabled, r1, r2, r3 = view.values
+                        if not base_type.get("counting"):
+                            base_type["counting"] = {}
+                        base_type["counting"]["enabled"] = True if enabled == "yes" else False
+                        base_type["counting"]["offence_1"], base_type["counting"]["offence_2"], base_type["counting"]["offence_3"] = r1[0].id, r2[0].id, r3[0].id
+
                     case "delete":
                         guild_settings["infractions"]["infractions"].pop(index)
                         try:
@@ -497,8 +644,8 @@ class StaffConduct(commands.Cog):
                             await self.bot.settings.update(guild_settings)
                             logging.warning("_id failure")
                         await message.edit(
-                            content=f"{successEmoji} **{infraction_type_name}** has been successfully submitted!",
-                            view=None,
+                            content=None,
+                            view=discord.ui.LayoutView().add_item(discord.ui.Container().add_item(discord.ui.TextDisplay(f"### Submitted\nThe infraction type **{infraction_type_name}** has been submitted."))),
                             embed=None,
                         )
                         break

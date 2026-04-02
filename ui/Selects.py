@@ -2,6 +2,39 @@ import discord, typing
 from utils.utils import generalised_interaction_check_failure
 from utils.constants import BLANK_COLOR
 
+
+
+class RoleSelectFinish(discord.ui.Button):
+    def __init__(self, user_id: int, select_menu: discord.ui.RoleSelect):
+        self.user_id = user_id
+        self.menu = select_menu
+        super().__init__(label="Finish", style=discord.ButtonStyle.success)
+    async def callback(self, interaction: discord.Interaction):
+        select = self.menu
+
+        if interaction.user.id == self.user_id:
+            await interaction.response.defer()
+            self.view.value = select.values
+            self.view.stop()
+        else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+class BulkRoleSelectFinish(discord.ui.Button):
+    def __init__(self, user_id: int, select_menu: typing.List[discord.ui.RoleSelect]):
+        self.user_id = user_id
+        self.menus = select_menu
+        super().__init__(label="Finish", style=discord.ButtonStyle.success)
+    async def callback(self, interaction: discord.Interaction):
+        values = [select.values for select in self.menus]
+
+        if interaction.user.id == self.user_id:
+            await interaction.response.defer()
+            self.view.values = values
+            self.view.stop()
+        else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            return await generalised_interaction_check_failure(interaction.followup)
+
 class RoleSelect(discord.ui.View):
     def __init__(self, user_id, **kwargs):
         super().__init__(timeout=600.0)
@@ -43,6 +76,20 @@ class RoleSelect(discord.ui.View):
             await interaction.response.defer(ephemeral=True, thinking=True)
             return await generalised_interaction_check_failure(interaction.followup)
 
+class SimpleRoleSelect(discord.ui.RoleSelect):
+    def __init__(self, limit, placeholder:str|None=None, **kwargs):
+        if not placeholder:
+            placeholder = "Select Roles" if limit > 1 else "Select a Role"
+        super().__init__(placeholder=placeholder, max_values=limit, **kwargs)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+class SimpleTextChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self, limit, **kwargs):
+        super().__init__(placeholder="Select Channels" if limit > 1 else "Select a Channel", max_values=limit, channel_types=[discord.ChannelType.text], **kwargs)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
 
 class ExpandedRoleSelect(discord.ui.View):
     def __init__(self, user_id, **kwargs):
@@ -302,6 +349,33 @@ class CustomDropdown(discord.ui.Select):
         else:
             await interaction.response.defer(ephemeral=True, thinking=True)
             return await generalised_interaction_check_failure(interaction.followup)
+class CustomDropdownInt(discord.ui.Select):
+    def __init__(self, options: list, limit=1):
+        optionList = []
+
+        for option in options:
+            if isinstance(option, str):
+                optionList.append(
+                    discord.SelectOption(
+                        label=option.replace("_", " ").title(), value=option
+                    )
+                )
+            elif isinstance(option, discord.SelectOption):
+                optionList.append(option)
+
+        # The placeholder is what will be shown when no option is chosen
+        # The min and max values indicate we can only pick one of the three options
+        # The options parameter defines the dropdown options. We defined this above
+        super().__init__(
+            placeholder="Select an option",
+            min_values=1,
+            max_values=limit,
+            options=optionList,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
 
 
 
