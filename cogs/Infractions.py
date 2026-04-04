@@ -307,7 +307,7 @@ class Infractions(commands.Cog):
             return await ctx.send(
                 embed=discord.Embed(
                     title="Not Enabled",
-                    description="Infractions are not enabled on this server.",
+                    description="Infractions are not enabled on this server. You will need to do this on the website.",
                     color=BLANK_COLOR,
                 )
             )
@@ -354,41 +354,48 @@ class Infractions(commands.Cog):
             existing_count = 0
             current_type = original_type
             # Create infraction document
-            
+            if infraction_config.get("counting"):
+                enabled = infraction_config["counting"].get("enabled", False)
+                if not enabled:
+                    pass
             if infraction_config.get("escalation"):
-                while True:
-                    threshold = infraction_config.get("escalation", {}).get("threshold", 0)
-                    next_infraction = infraction_config.get("escalation", {}).get("next_infraction")
+                enabled = infraction_config["escalation"].get("enabled", False)
+                if not enabled:
+                    pass
+                else:
+                    while True:
+                        threshold = infraction_config.get("escalation", {}).get("threshold", 0)
+                        next_infraction = infraction_config.get("escalation", {}).get("next_infraction")
 
-                    if not threshold or not next_infraction:
-                        break
-
-                    existing_count = await self.bot.db.infractions.count_documents(
-                        {
-                            "user_id": target_id,
-                            "guild_id": ctx.guild.id,
-                            "type": current_type,
-                            "revoked": {"$ne": True},
-                        }
-                    )
-
-                    if (existing_count + 1) >= threshold:
-                        next_config = next(
-                            (
-                                inf
-                                for inf in settings["infractions"]["infractions"]
-                                if inf["name"] == next_infraction
-                            ),
-                            None,
-                        )
-                        if not next_config:
+                        if not threshold or not next_infraction:
                             break
 
-                        current_type = next_infraction
-                        will_escalate = True
-                        infraction_config = next_config
-                    else:
-                        break
+                        existing_count = await self.bot.db.infractions.count_documents(
+                            {
+                                "user_id": target_id,
+                                "guild_id": ctx.guild.id,
+                                "type": current_type,
+                                "revoked": {"$ne": True},
+                            }
+                        )
+
+                        if (existing_count + 1) >= threshold:
+                            next_config = next(
+                                (
+                                    inf
+                                    for inf in settings["infractions"]["infractions"]
+                                    if inf["name"] == next_infraction
+                                ),
+                                None,
+                            )
+                            if not next_config:
+                                break
+
+                            current_type = next_infraction
+                            will_escalate = True
+                            infraction_config = next_config
+                        else:
+                            break
 
             if will_escalate:
                 type = current_type
@@ -551,6 +558,33 @@ class Infractions(commands.Cog):
                 )
             )
 
+    @commands.hybrid_group(
+        name="infraction",
+        description="Manage infractions with ease!",
+        extras={"category": "Staff Conduct"},
+    )
+    @is_management()
+    async def infraction(self, ctx: commands.Context):
+        pass
 
+    @infraction.command(
+        name="manage",
+        description="Manage staff infractions, staff conduct, and custom integrations!",
+        extras={"category": "Staff Conduct"},
+    )
+    @is_management()
+    async def _manage(self, ctx: commands.Context):
+        return await (
+            ctx.send
+            if not ctx.interaction
+            else ctx.interaction.response.send_message
+        ) (
+            embed=discord.Embed(
+                title = "Staff Conduct Discord Configuration Deprecated",
+                description="Starting from the 7th of April, staff conduct configuration has been removed from the Discord side due to Components V2 migration issues. You will need to instead use the website in order to configure this feature."
+            ),
+            view=discord.ui.View().add_item(discord.ui.Button(label = "Configure on the website", url=f"https://ermbot.xyz/{ctx.guild.id}/dashboard/infractions")),
+            ephemeral=True
+        )
 async def setup(bot):
     await bot.add_cog(Infractions(bot))

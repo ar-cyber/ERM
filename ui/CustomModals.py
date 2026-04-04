@@ -67,7 +67,7 @@ class CustomModalButton(discord.ui.Button):
         user_id,
         title: str,
         label: str,
-        options: typing.List[typing.Tuple[str, discord.ui.TextInput, discord.ui.Label]],
+        options: typing.List[typing.Tuple[str | typing.Literal[str], discord.ui.TextInput | discord.ui.Label]],
         epher_args: typing.Optional[dict] = None,
     ):
         super().__init__(label=label or "Enter Strike Amount", style=discord.ButtonStyle.secondary)
