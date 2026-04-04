@@ -575,7 +575,7 @@ class Infractions(commands.Cog):
     @is_management()
     async def _manage(self, ctx: commands.Context):
         return await (
-            ctx.send
+            ctx.reply
             if not ctx.interaction
             else ctx.interaction.response.send_message
         ) (
