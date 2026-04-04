@@ -7,6 +7,7 @@ import typing
 
 from erm import Bot
 from menus import CustomSelectMenu
+from ui.Selects import CustomDropdown
 from utils.constants import BLANK_COLOR
 from utils.utils import generalised_interaction_check_failure
 import asyncio
@@ -188,23 +189,29 @@ class SelectPagination(discord.ui.View):
                 ephemeral=True,
             )
         await interaction.response.defer(ephemeral=True, thinking=True)
-
-        msg = await interaction.followup.send(
-            _cv2_skip=True,
-            embed=discord.Embed(
-                title="Change Pages",
-                description="What page would you like to change to?",
-                color=BLANK_COLOR,
-            ),
-            view=(
-                view := CustomSelectMenu(
-                    self.user_id,
-                    [
-                        discord.SelectOption(label=page.identifier, value=str(index))
-                        for index, page in enumerate(self.pages)
-                    ],
+        cont = discord.ui.Container()
+        cont.add_item(
+            discord.ui.TextDisplay(
+                (
+                    "### Change the Page\n"
+                    "What page would you like to go to?"
                 )
-            ),
+            )
+        ).add_item(
+            discord.ui.Separator()
+        ).add_item(
+            discord.ui.ActionRow(
+            CustomDropdown(
+                self.user_id,
+                [
+                    discord.SelectOption(label=page.identifier, value=str(index))
+                    for index, page in enumerate(self.pages)
+                ],
+            ))
+        )
+        msg = await interaction.followup.send(
+            embed=None,
+            view=(view := discord.ui.LayoutView().add_item(cont))
         )
 
         await view.wait()
