@@ -279,7 +279,7 @@ def _embed_to_markdown(embed: discord.Embed) -> str:
     body_parts: List[str] = []
 
     if embed.title:
-        body_parts.append(f"## {embed.title}")
+        body_parts.append(f"### {embed.title}")
 
     if embed.description:
         body_parts.append(embed.description.strip())

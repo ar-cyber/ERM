@@ -704,7 +704,7 @@ class ERLC(commands.Cog):
         else:
             return await ctx.send(
                 embed=discord.Embed(
-                    title="Not Executed",
+                    title=f"Not Executed ({command_response[0]})",
                     description="This Hint has not been sent to the server successfully.",
                     color=BLANK_COLOR,
                 )
@@ -728,12 +728,7 @@ class ERLC(commands.Cog):
                 if not ctx.interaction
                 else ctx.interaction.response.send_message
             )(
-                embed=discord.Embed(
-                    title="Incorrect Key",
-                    description="This Server Key is invalid and nonfunctional. Ensure you've entered it correctly.",
-                    color=BLANK_COLOR,
-                ),
-                ephemeral=True,
+                view=discord.ui.LayoutView().add_item(discord.ui.Container(discord.ui.TextDisplay(f"### Incorrect Key\nThis key has been reported by PRC as invalid. Please check your key and try again. If this continues, open a ticket and send the following status ID: `{status}`.")))
             )
         else:
             await self.bot.server_keys.upsert({"_id": ctx.guild.id, "key": key})
@@ -759,7 +754,7 @@ class ERLC(commands.Cog):
     @is_erlc_server_linked()
     async def server_unlink(self, ctx: commands.Context):
         await log_command_usage(self.bot, ctx.guild, ctx.author, f"ER:LC Unlink")
-        await self.bot.server_keys.delete_one({"_id": ctx.guild.id})
+        await self.bot.server_keys.db.delete_one({"_id": ctx.guild.id})
         await ctx.send(
             embed=discord.Embed(
                 title=f"{self.bot.emoji_controller.get_emoji('success')} Successfully Unlinked",
@@ -768,6 +763,7 @@ class ERLC(commands.Cog):
             )
         )
 
+    @commands.guild_only()
     @server.command(
         name="command",
         description='Send a direct command to your ER:LC server, under "Remote Server Management"',
@@ -787,7 +783,7 @@ class ERLC(commands.Cog):
                     "robloxID"
                 )
                 or 0
-            ):
+            ) or ctx.guild.owner == ctx.author:
                 elevated_privileges = True
                 break
         else:
