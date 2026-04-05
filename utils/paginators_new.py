@@ -103,7 +103,7 @@ class SelectPagination(discord.ui.LayoutView):
         self,
         interaction: discord.Interaction,
         increment_index: int,
-        mode: typing.Literal["set", "increment"],
+        mode: typing.Literal["set", "increment", "detach"],
     ):
         if mode == "set":
             new_index = increment_index
