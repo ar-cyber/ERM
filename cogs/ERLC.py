@@ -13,6 +13,7 @@ import logging
 from typing import List
 from erm import admin_check, is_staff, is_management, management_predicate
 from utils.paginators import CustomPage, SelectPagination
+from utils.paginators_new import CustomPage as CustomPageV2, SelectPagination as SelectPaginationV2
 from menus import CustomModal, ReloadView, RefreshConfirmation, RiskyUsersMenu, CustomExecutionButton
 from ui.ReloadAndRefresh import ReloadButton
 import copy
@@ -30,10 +31,11 @@ from utils.utils import get_discord_by_roblox, get_roblox_by_username, log_comma
 from discord import app_commands
 import typing
 from roblox.users import User
+from erm import Bot
 
 class ERLC(commands.Cog):
     def __init__(self, bot: commands.Bot):
-        self.bot = bot
+        self.bot: Bot = bot
 
     @staticmethod
     def is_erlc_server_linked():
@@ -522,33 +524,29 @@ class ERLC(commands.Cog):
                 )
             )
 
-        embed = discord.Embed(
-            title="Moderator Calls", color=BLANK_COLOR, description=""
-        )
-        embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon or "")
+        container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Moderator Calls")).add_item(discord.ui.Separator())
+        value = ""
         pages = []
         for call in modcalls:
             val = f"> Caller: [{call.caller_username}](https://roblox.com/users/{call.caller_id}/profile) • Moderator: {'[{}](https://roblox.com/users/{}/profile)'.format(call.moderator_username, call.moderator_id) if call.moderator_id else 'n/a'} • <t:{call.timestamp}:t>\n"
             if filter and (filter.lower() in val.lower()):
-                embed.description += val
+                value += val
             elif not filter:
-                embed.description += val
-            if len(embed.description) > 2000:
-                pages.append(CustomPage(embeds=[embed], identifier=str(len(pages) + 1)))
-                embed = discord.Embed(
-                    title="Moderator Calls", color=BLANK_COLOR, description=""
-                )
-                embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon or "")
+                value += val
+            if len(value) > 2000:
+                container.add_item(discord.ui.TextDisplay(value))
+                pages.append(CustomPageV2(containers = [container], identifier=str(len(pages) + 1)))
+                container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Moderator Calls")).add_item(discord.ui.Separator())
         
         if len(pages) == 0:
-            if embed.description == "":
-                embed.description = "> No modcalls found."
-            await ctx.send(embed=embed)
+            if value == "":
+                value = "> No modcalls found."
+            container.add_item(discord.ui.TextDisplay(value))
+            await ctx.send(view=discord.ui.LayoutView().add_item(container))
             return
-    
-        paginator = SelectPagination(self.bot, ctx.author.id, pages)
-        await ctx.send(
-            embed=pages[0].embeds[0],
+        container.add_item(discord.ui.TextDisplay(value))
+        paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
+        await ctx.reply(
             view=paginator.get_current_view(),
         )
         
@@ -566,34 +564,30 @@ class ERLC(commands.Cog):
         # use SelectPagination - sort by Server Co-Owner, Server Administrator, Server Moderator
         pages = []
         server_staff = await self.bot.prc_api.get_server_staff(ctx.guild.id)
-        embed = discord.Embed(
-            title="Server Permissions", color=BLANK_COLOR, description=""
-        )
-        embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon or "")
+        container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Server Permissions")).add_item(discord.ui.Separator())
+        value = ""
         for item in server_staff:
             val = f"> [{item.username}](https://roblox.com/users/{item.id}/profile) - {item.permission}\n"
             if filter and filter.lower() in val.lower():
-                embed.description += val
+                value += val
             elif not filter:
-                embed.description += val
-            if len(embed.description) > 1000:
-                pages.append(CustomPage(embeds=[embed], identifier=str(len(pages) + 1)))
-                embed = discord.Embed(
-                    title="Server Permissions", color=BLANK_COLOR, description=""
-                )
-                embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon or "")
+                value += val
+            if len(value) > 1000:
+                
+                pages.append(CustomPageV2(containers=[container], identifier=str(len(pages) + 1)))
+                container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Server Permissions")).add_item(discord.ui.Separator())
             
         if len(pages) == 0:
-            if embed.description == "":
-                embed.description = "> No permissions found."
+            if value == "":
+                value = "> No permissions found."
+            container.add_item(discord.ui.TextDisplay(value))
             await ctx.send(
-                embed=embed
+                view=discord.ui.LayoutView().add_item(container)
             )
             return
-
-        paginator = SelectPagination(self.bot, ctx.author.id, pages)
-        await ctx.send(
-            embed=pages[0].embeds[0],
+        container.add_item(discord.ui.TextDisplay(value))
+        paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
+        await ctx.reply(
             view=paginator.get_current_view(),
         )
     

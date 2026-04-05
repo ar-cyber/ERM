@@ -170,9 +170,16 @@ class PRCApiClient:
         if status_code == 200:
             co_owners = response_json.get("CoOwners", [])
             roblox_client = roblox.Client()
-            co_owner_users = await roblox_client.get_users(co_owners, expand=False)
-            co_owner_names = [user.name for user in co_owner_users]
-            co_owners = dict(zip(co_owners, co_owner_names))
+            try:
+                co_owner_users = await roblox_client.get_users(co_owners, expand=False)
+                co_owner_names = [user.name for user in co_owner_users]
+                co_owners = dict(zip(co_owners, co_owner_names))
+            except:
+                co_owner_users = []
+                co_owner_names=[]
+                co_owners = dict(zip(co_owners, co_owners))
+            
+            
             try:
                 players = [Player(username=v, id=k, permission="Server Co-Owner") for k,v in co_owners.items()]
             except AttributeError:

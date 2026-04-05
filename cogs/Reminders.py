@@ -20,10 +20,6 @@ class Reminders(commands.Cog):
             raise RuntimeError("Configure cog must be loaded before Reminders")
         self.manage_reminders.cog = self.bot.cogs.get("Configure")
         configure.add_command(self.manage_reminders)
-    @commands.hybrid_group(name="reminders")
-    @is_management()
-    async def reminders(self, ctx):
-        pass
 
     @commands.guild_only()
     @commands.hybrid_command(
