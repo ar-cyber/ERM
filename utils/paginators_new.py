@@ -35,6 +35,11 @@ class SelectPagination(discord.ui.LayoutView):
         self.current_index = start_at
         self.edit_method = edit_method
 
+        self.index_button = discord.ui.Button(
+            label = f"Page {self.current_index+1}/{len(pages)}",
+            disabled=True
+        )
+
         self.back_button = discord.ui.Button(
             emoji=discord.PartialEmoji.from_str(
                 bot.emoji_controller.get_emoji("l_arrow")
@@ -57,6 +62,7 @@ class SelectPagination(discord.ui.LayoutView):
         self.next_button.callback = self._next_callback
         self.end_button.callback = self._end_callback
         self.nav_row = discord.ui.ActionRow(
+            self.index_button,
             self.back_button,
             self.set_current_page,
             self.next_button,
@@ -90,6 +96,7 @@ class SelectPagination(discord.ui.LayoutView):
             self._validate_page_items(page_view)
             for item in page_view.children:
                 view.add_item(item)
+         
         if not detach:
             view.add_item(self.nav_container)
 
@@ -113,6 +120,7 @@ class SelectPagination(discord.ui.LayoutView):
             new_index = (self.current_index + increment_index) % len(self.pages)
 
         self.current_index = new_index
+        self.index_button.label = f"Page {self.current_index+1}/{len(self.pages)}"
         new_page = self.pages[new_index]
 
         self._update_identifier_label(new_page)
