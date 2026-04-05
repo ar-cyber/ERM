@@ -1,5 +1,3 @@
-# If you're wondering why this is called 1_Configuration, it is so that it is loaded first before any other cogs. This is because of the configure group, which MUST be loaded before actions
-
 from copy import copy
 from pprint import pformat
 
