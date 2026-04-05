@@ -536,6 +536,7 @@ class ERLC(commands.Cog):
                 container = discord.ui.Section(accessory=discord.ui.Thumbnail(
                     media=ctx.guild.icon.with_format("png").url
                 )).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Moderator Calls")).add_item(discord.ui.Separator())
+                value = ""
         
         if len(pages) == 0:
             if value == "":
@@ -578,6 +579,7 @@ class ERLC(commands.Cog):
                 pages.append(CustomPageV2(containers=[cont], identifier=str(len(pages) + 1)))
                 cont = discord.ui.Container()
                 container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Permissions"))
+                value = ""
             
         if len(pages) == 0:
             if value == "":
@@ -1022,34 +1024,41 @@ class ERLC(commands.Cog):
             guild_id = int(guild_id)
             # status: ServerStatus = await self.bot.prc_api.get_server_status(guild_id)
             kill_logs: list[KillLog] = await self.bot.prc_api.fetch_kill_logs(guild_id)
-            embed = discord.Embed(
-                color=BLANK_COLOR, title="Server Kill Logs", description=""
-            )
-
+            cont = discord.ui.Container()
+            container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Kill logs\n"))
+            value = ""
             sorted_kill_logs = sorted(
                 kill_logs, key=lambda log: log.timestamp, reverse=True
             )
             for log in sorted_kill_logs:
-                if len(embed.description) > 3800:
+
+                value += f"> [{log.killer_username}](https://roblox.com/users/{log.killer_user_id}/profile) killed [{log.killed_username}](https://roblox.com/users/{log.killed_user_id}/profile) • <t:{int(log.timestamp)}:R>\n"
+                if len(value) > 3800:
                     break
-                embed.description += f"> [{log.killer_username}](https://roblox.com/users/{log.killer_user_id}/profile) killed [{log.killed_username}](https://roblox.com/users/{log.killed_user_id}/profile) • <t:{int(log.timestamp)}:R>\n"
-
-            if embed.description in ["", "\n"]:
-                embed.description = "> No kill logs found."
-
-            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
-
-            # embed.set_footer(icon_url="https://cdn.discordapp.com/emojis/1176999148084535326.webp?size=128&quality=lossless",
-            #                   text="Last updated 5 seconds ago")
-            if msg is None:
-                view = ReloadView(
-                    self.bot, ctx.author.id, operate_and_reload_kills, [None, guild_id]
+            if value in ["", "\n"]:
+                value = "> No kill logs found."
+            container.add_item(discord.ui.TextDisplay(value))
+            cont.add_item(container).add_item(discord.ui.Separator())
+            
+            row = discord.ui.ActionRow(
+                ReloadButton(
+                    self.bot,
+                    ctx.author.id,
+                    operate_and_reload_kills,
+                    [None, guild_id],
                 )
-                msg = await ctx.send(embed=embed, view=view)
-                view.message = msg
-                view.callback_args[0] = msg
+            )
+            cont.add_item(row)
+            if msg is None:
+                view = discord.ui.LayoutView().add_item(cont)
+                msg = await ctx.send(view=view)
+                cont.children[2].children[0].message = msg
+                cont.children[2].children[0].callback_args[0] = msg
             else:
-                await msg.edit(embed=embed)
+                cont.remove_item(row)
+                view = discord.ui.LayoutView().add_item(cont)
+                await msg.edit(view=view, allowed_mentions=discord.AllowedMentions.none())
+                del view
 
         await operate_and_reload_kills(None, guild_id)
 
@@ -1067,37 +1076,43 @@ class ERLC(commands.Cog):
             player_logs: list[JoinLeaveLog] = await self.bot.prc_api.fetch_player_logs(
                 guild_id
             )
-            embed = discord.Embed(
-                color=BLANK_COLOR, title="Player Join/Leave Logs", description=""
-            )
+            cont = discord.ui.Container()
+            container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Player Join/Leave Logs\n"))
 
+            value = ""
             sorted_logs = sorted(
                 player_logs, key=lambda log: log.timestamp, reverse=True
             )
             for log in sorted_logs:
-                if len(embed.description) > 3800:
+                if len(value) > 3800:
                     break
-                embed.description += f"> [{log.username}](https://roblox.com/users/{log.user_id}/profile) {'joined the server' if log.type == 'join' else 'left the server'} • <t:{int(log.timestamp)}:R>\n"
+                value += f"> [{log.username}](https://roblox.com/users/{log.user_id}/profile) {'joined the server' if log.type == 'join' else 'left the server'} • <t:{int(log.timestamp)}:R>\n"
 
-            if embed.description in ["", "\n"]:
-                embed.description = "> No player logs found."
+            if value in ["", "\n"]:
+                value = "> No player logs found."
 
-            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
+            container.add_item(discord.ui.TextDisplay(value))
+            cont.add_item(container).add_item(discord.ui.Separator())
 
-            # embed.set_footer(icon_url="https://cdn.discordapp.com/emojis/1176999148084535326.webp?size=128&quality=lossless",
-            #                   text="Last updated 5 seconds ago")
-            if msg is None:
-                view = ReloadView(
+            row = discord.ui.ActionRow(
+                ReloadButton(
                     self.bot,
                     ctx.author.id,
                     operate_and_reload_playerlogs,
                     [None, guild_id],
                 )
-                msg = await ctx.send(embed=embed, view=view)
-                view.message = msg
-                view.callback_args[0] = msg
+            )
+            cont.add_item(row)
+            if msg is None:
+                view = discord.ui.LayoutView().add_item(cont)
+                msg = await ctx.send(view=view)
+                cont.children[2].children[0].message = msg
+                cont.children[2].children[0].callback_args[0] = msg
             else:
-                await msg.edit(embed=embed)
+                cont.remove_item(row)
+                view = discord.ui.LayoutView().add_item(cont)
+                await msg.edit(view=view, allowed_mentions=discord.AllowedMentions.none())
+                del view
 
         await operate_and_reload_playerlogs(None, guild_id)
 
