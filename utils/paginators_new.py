@@ -28,7 +28,7 @@ class SelectPagination(discord.ui.LayoutView):
         start_at=0,
         edit_method=None,
     ):
-        super().__init__(timeout=None)
+        super().__init__(timeout=900)
         self.bot = bot
         self.pages = pages
         self.user_id = user_id
@@ -71,7 +71,9 @@ class SelectPagination(discord.ui.LayoutView):
         self.nav_container = discord.ui.Container()
         self.nav_container.add_item(self.nav_row)
         self.add_item(self.nav_container)
-
+    async def on_timeout(self):
+        for child in self.nav_row.children:
+            child.disabled = True
     def _validate_page_items(self, page_view: discord.ui.LayoutView):
         for item in page_view.children:
             if getattr(item, "default", None) is not None:
