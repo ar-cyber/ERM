@@ -48,15 +48,19 @@ class SelectPagination(discord.ui.LayoutView):
                 bot.emoji_controller.get_emoji("arrow")
             )
         )
+        self.end_button = discord.ui.Button(
+            emoji = "<:check:1163142000271429662>"
+        )
 
         self.back_button.callback = self._back_callback
         self.set_current_page.callback = self._set_page_callback
         self.next_button.callback = self._next_callback
-
+        self.end_button.callback = self._end_callback
         self.nav_row = discord.ui.ActionRow(
             self.back_button,
             self.set_current_page,
             self.next_button,
+            self.end_button
         )
         self.nav_container = discord.ui.Container()
         self.nav_container.add_item(self.nav_row)
@@ -75,7 +79,7 @@ class SelectPagination(discord.ui.LayoutView):
         if new_page.identifier:
             self.set_current_page.label = new_page.identifier
 
-    def _build_view(self, page: CustomPage) -> discord.ui.LayoutView:
+    def _build_view(self, page: CustomPage, detach: bool=False) -> discord.ui.LayoutView:
         view = discord.ui.LayoutView(timeout=None)
 
         for container in getattr(page, "containers", []):
@@ -86,8 +90,8 @@ class SelectPagination(discord.ui.LayoutView):
             self._validate_page_items(page_view)
             for item in page_view.children:
                 view.add_item(item)
-
-        view.add_item(self.nav_container)
+        if not detach:
+            view.add_item(self.nav_container)
 
         return view
 
@@ -103,6 +107,8 @@ class SelectPagination(discord.ui.LayoutView):
     ):
         if mode == "set":
             new_index = increment_index
+        elif mode == "detach":
+            new_index = self.current_index
         else:
             new_index = (self.current_index + increment_index) % len(self.pages)
 
@@ -110,7 +116,10 @@ class SelectPagination(discord.ui.LayoutView):
         new_page = self.pages[new_index]
 
         self._update_identifier_label(new_page)
-        new_view = self._build_view(new_page)
+        if not mode == "detach":
+            new_view = self._build_view(new_page)
+        else:
+            new_view = self._build_view(new_page, detach=True)
 
         if self.edit_method:
             await self.edit_method(view=new_view)
@@ -156,6 +165,12 @@ class SelectPagination(discord.ui.LayoutView):
     async def _next_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
         await self._paginate(interaction, 1, "increment")
+
+    async def _end_callback(self, interaction: discord.Interaction):
+        self.remove_item(self.nav_container)
+        await interaction.response.defer()
+        await self._paginate(interaction, 0, "detach")
+        
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
