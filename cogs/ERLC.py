@@ -513,18 +513,13 @@ class ERLC(commands.Cog):
     )
     async def erlc_modcalls(self, ctx: commands.Context, filter: typing.Optional[str] = None):
         guild_id = ctx.guild.id
-        modcalls = await self.bot.prc_api.get_mod_calls(guild_id)
+        modcalls = await self.bot.prc_api.get_mod_calls(guild_id) or []
 
-        if not modcalls:
-            return await ctx.send(
-                embed=discord.Embed(
-                    title="No Modcalls Found",
-                    description="There are no modcalls in this server.",
-                    color=BLANK_COLOR,
-                )
-            )
-
-        container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Moderator Calls")).add_item(discord.ui.Separator())
+        cont = discord.ui.Container()
+        container = discord.ui.Section(accessory=discord.ui.Thumbnail(
+            media=ctx.guild.icon.with_format("png").url
+        ))
+        container.add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Moderator Calls"))
         value = ""
         pages = []
         for call in modcalls:
@@ -535,16 +530,20 @@ class ERLC(commands.Cog):
                 value += val
             if len(value) > 2000:
                 container.add_item(discord.ui.TextDisplay(value))
-                pages.append(CustomPageV2(containers = [container], identifier=str(len(pages) + 1)))
-                container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Moderator Calls")).add_item(discord.ui.Separator())
+                cont.add_item(container).add_item(discord.ui.Separator())
+                pages.append(CustomPageV2(containers = [cont], identifier=str(len(pages) + 1)))
+                cont = discord.ui.Container()
+                container = discord.ui.Section(accessory=discord.ui.Thumbnail(
+                    media=ctx.guild.icon.with_format("png").url
+                )).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Moderator Calls")).add_item(discord.ui.Separator())
         
         if len(pages) == 0:
             if value == "":
                 value = "> No modcalls found."
             container.add_item(discord.ui.TextDisplay(value))
-            await ctx.send(view=discord.ui.LayoutView().add_item(container))
+            cont.add_item(container).add_item(discord.ui.Separator())
+            await ctx.send(view=discord.ui.LayoutView().add_item(cont))
             return
-        container.add_item(discord.ui.TextDisplay(value))
         paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
         await ctx.reply(
             view=paginator.get_current_view(),
@@ -564,7 +563,8 @@ class ERLC(commands.Cog):
         # use SelectPagination - sort by Server Co-Owner, Server Administrator, Server Moderator
         pages = []
         server_staff = await self.bot.prc_api.get_server_staff(ctx.guild.id)
-        container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Server Permissions")).add_item(discord.ui.Separator())
+        cont = discord.ui.Container()
+        container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Permissions"))
         value = ""
         for item in server_staff:
             val = f"> [{item.username}](https://roblox.com/users/{item.id}/profile) - {item.permission}\n"
@@ -573,19 +573,21 @@ class ERLC(commands.Cog):
             elif not filter:
                 value += val
             if len(value) > 1000:
-                
-                pages.append(CustomPageV2(containers=[container], identifier=str(len(pages) + 1)))
-                container = discord.ui.Container().add_item(discord.ui.TextDisplay("### Server Permissions")).add_item(discord.ui.Separator())
+                container.add_item(discord.ui.TextDisplay(value))
+                cont.add_item(container).add_item(discord.ui.Separator())
+                pages.append(CustomPageV2(containers=[cont], identifier=str(len(pages) + 1)))
+                cont = discord.ui.Container()
+                container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Permissions"))
             
         if len(pages) == 0:
             if value == "":
                 value = "> No permissions found."
             container.add_item(discord.ui.TextDisplay(value))
+            cont.add_item(container).add_item(discord.ui.Separator())
             await ctx.send(
-                view=discord.ui.LayoutView().add_item(container)
+                view=discord.ui.LayoutView().add_item(cont)
             )
             return
-        container.add_item(discord.ui.TextDisplay(value))
         paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
         await ctx.reply(
             view=paginator.get_current_view(),
@@ -885,7 +887,7 @@ class ERLC(commands.Cog):
                     f"-# {ctx.guild.name}\n"
                     f"### {status.name}\n"
                     f"**Basic Info**\n"
-                    f"> **Join Code:** [{status.join_key}](https://policeroleplay.community/join/{status.join_key})\n"
+                    f"> **Join Code:** [`{status.join_key}`](https://policeroleplay.community/join/{status.join_key})\n"
                     f"> **Current Players:** {status.current_players}/{status.max_players}\n"
                     f"> **Queue:** {queue}\n"
                     f"**Server Ownership**\n"
