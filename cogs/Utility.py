@@ -422,28 +422,28 @@ class Utility(commands.Cog):
     async def about(self, ctx):
         # using an embed
         # [**Support Server**](https://discord.gg/5pMmJEYazQ)
-        embed = discord.Embed(
-            title="About ERM",
-            color=BLANK_COLOR,
-            description="ERM is the all-in-one approach to game moderation logging, shift logging and more.",
+        cont = discord.ui.Container()
+        sect = discord.ui.Section(accessory=discord.ui.Thumbnail(
+            media=ctx.guild.icon.with_format("png").url
+        ))
+        sect.add_item(
+            discord.ui.TextDisplay(
+                (
+                    "### About ERM\n"
+                    "ERM is the all-in-one approach to game moderation logging, shift management, and more! Control your server with unrivalled power and take advantage of the rich feature set that ERM contains."
+                )
+            )
+        )
+        cont.add_item(sect).add_item(discord.ui.Separator())
+        cont.add_item(
+            discord.ui.ActionRow(
+                discord.ui.Button(label = "Visit our Website", url="https://ermbot.xyz"),
+                discord.ui.Button(label = "Get Support in Our Server", url="https://discord.gg/FAC629TzBy"),
+                discord.ui.Button(label="View Documentation", url="https://docs.ermbot.xyz")
+            )
         )
 
-        embed.add_field(
-            name=f"Bot Information",
-            value=(
-                "> **Website:** [View Website](https://ermbot.xyz)\n"
-                "> **Support:** [Join Server](https://discord.gg/FAC629TzBy)\n"
-                f"> **Invite:** [Invite Bot](https://discord.com/oauth2/authorize?client_id={self.bot.user.id}&permissions=8&scope=bot%20applications.commands)\n"
-                "> **Documentation:** [View Documentation](https://docs.ermbot.xyz)\n"
-                "> **Desktop:** [Download ERM Desktop](https://ermbot.xyz/download)"
-            ),
-            inline=False,
-        )
-        embed.set_author(
-            name=self.bot.user.name,
-            icon_url=self.bot.user.display_avatar.url,
-        )
-        await ctx.reply(embed=embed)
+        await ctx.reply(view=discord.ui.LayoutView().add_item(cont))
 
     @commands.hybrid_group(name="api")
     async def api(self, ctx):
