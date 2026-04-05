@@ -475,7 +475,7 @@ def _extract_action_rows(v1_view: Any) -> List[Any]:
     wrapped in :class:`discord.ui.ActionRow` instances, grouped by row index.
     """
     if _ActionRow is None:
-        log.debug("components_v2_bridge: ActionRow unavailable, cannot migrate v1 view")
+        log.warning("components_v2_bridge: ActionRow unavailable, cannot migrate v1 view")
         return []
 
     children = getattr(v1_view, "_children", None) or getattr(v1_view, "children", None)
