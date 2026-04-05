@@ -35,7 +35,8 @@ class HelpCommand(commands.HelpCommand):
         lines = []
         for c in sorted(commands_list, key=lambda c: c.name):
             prefix = "  " * indent
-            lines.append(f"{prefix}- `{self.get_command_signature(c)}`")
+            description = c.help or c.brief or c.description
+            lines.append(f"{prefix}- `{self.get_command_signature(c).strip()}`: {description}")
             if isinstance(c, commands.Group):
                 lines.extend(self.format_commands(c.commands, indent + 1))
         return lines
@@ -66,8 +67,7 @@ class HelpCommand(commands.HelpCommand):
                 page = self.make_page(
                     cog_name,
                     [
-                        discord.ui.Container(accent_colour=discord.Colour.blurple())
-                        
+                        discord.ui.Container()
                         .add_item(discord.ui.TextDisplay(f"### {cog_name}\n"))
                         .add_item(discord.ui.Separator())
                         .add_item(discord.ui.TextDisplay("\n".join(lines)))
@@ -91,64 +91,67 @@ class HelpCommand(commands.HelpCommand):
             return
 
         lines = self.format_commands(filtered)
-        page = self.make_page(
-            cog.qualified_name,
-            [
-                discord.ui.Container(accent_colour=discord.Colour.blurple())
-                .add_item(discord.ui.TextDisplay(f"### {cog.qualified_name}"))
-                .add_item(discord.ui.Separator())
-                .add_item(discord.ui.TextDisplay("\n".join(lines)))
-            ],
-        )
-        paginator = self._send_paginator([page])
-        await self.get_destination().send(view=paginator.get_current_view())
+
+        containers = [
+            discord.ui.Container()
+            .add_item(discord.ui.TextDisplay(f"### {cog.qualified_name}"))
+            .add_item(discord.ui.Separator())
+            .add_item(discord.ui.TextDisplay("\n".join(lines)))
+        ]
+        view = discord.ui.LayoutView()
+        for item in containers:
+            view.add_item(item)
+        await self.get_destination().send(view=view)
 
     async def send_group_help(self, group: commands.Group) -> None:
         filtered = await self.filter_commands(group.commands, sort=True)
 
         containers = [
-            discord.ui.Container(accent_colour=discord.Colour.blurple())
+            discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {group.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
                 f"`{self.get_command_signature(group)}`\n"
-                f"{group.help or 'No description provided.'}"
+                f"{group.help or group.description or 'No description provided.'}"
             ))
         ]
 
         if filtered:
             containers.append(
-                discord.ui.Container(accent_colour=discord.Colour.blurple())
+                discord.ui.Container()
                 .add_item(discord.ui.TextDisplay("### Subcommands"))
                 .add_item(discord.ui.Separator())
                 .add_item(discord.ui.TextDisplay("\n".join(self.format_commands(filtered))))
             )
-
-        paginator = self._send_paginator([self.make_page(group.qualified_name, containers)])
-        await self.get_destination().send(view=paginator.get_current_view())
+        view = discord.ui.LayoutView()
+        for item in containers:
+            view.add_item(item)
+        await self.get_destination().send(view=view)
 
     async def send_command_help(self, command: commands.Command) -> None:
         containers = [
-            discord.ui.Container(accent_colour=discord.Colour.blurple())
-            .add_item(discord.ui.TextDisplay(f"### {command.qualified_name}"))
+            discord.ui.Container()
+            .add_item(discord.ui.TextDisplay(f"### `{command.qualified_name}`"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
                 f"`{self.get_command_signature(command)}`\n"
-                f"{command.help or 'No description provided.'}"
+                f"{command.help or command.description or 'No description provided.'}"
             ))
         ]
 
         if command.aliases:
             alias_tags = "\n".join(f"> `{a}`" for a in command.aliases)
             containers.append(
-                discord.ui.Container(accent_colour=discord.Colour.blurple())
+                discord.ui.Container()
                 .add_item(discord.ui.TextDisplay("### Aliases"))
                 .add_item(discord.ui.Separator())
                 .add_item(discord.ui.TextDisplay(alias_tags))
             )
 
-        paginator = self._send_paginator([self.make_page(command.qualified_name, containers)])
-        await self.get_destination().send(view=paginator.get_current_view())
+        view = discord.ui.LayoutView()
+        for item in containers:
+            view.add_item(item)
+        await self.get_destination().send(view=view)
 
     async def send_error_message(self, error: str) -> None:
         container = (

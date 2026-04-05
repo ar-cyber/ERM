@@ -1,3 +1,5 @@
+# If you're wondering why this is called 1_Configuration, it is so that it is loaded first before any other cogs. This is because of the configure group, which MUST be loaded before actions
+
 from copy import copy
 from pprint import pformat
 
@@ -6,7 +8,7 @@ from discord import HTTPException
 from discord.ext import commands
 from copy import deepcopy
 
-from erm import check_privacy, generator, is_management
+from erm import check_privacy, generator, is_management, is_admin
 from utils.constants import BLANK_COLOR, BLANK_COLOR
 from ui.Selects import RoleSelect, ChannelSelect, CustomSelectMenu
 from ui.Configuration import *
@@ -82,6 +84,61 @@ class Configuration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.hybrid_group(name = "configure", description="Configure ERM!")
+    async def configure(self, ctx: commands.Context):
+        pass
+    @configure.command(name="actions", description="Manage your ERM Actions easily.")
+    @is_admin()
+    async def actions_manage(self, ctx: commands.Context):
+        await log_command_usage(self.bot, ctx.guild, ctx.author, f"Actions Manage")
+        actions = [i async for i in self.bot.db.actions.find({"Guild": ctx.guild.id})]
+
+        embeds = []
+        current_embed = discord.Embed(title="Actions", color=BLANK_COLOR).set_author(
+            name=ctx.guild.name, icon_url=ctx.guild.icon
+        )
+
+        for item in actions:
+            if len(current_embed.fields) >= 5:
+                embeds.append(current_embed)
+                current_embed = discord.Embed(
+                    title="Actions (cont.)", color=BLANK_COLOR
+                )
+
+            current_embed.add_field(
+                name=item["ActionName"],
+                value=(
+                    f"> **Name:** {item['ActionName']}\n"
+                    f"> **ID:** `{item['ActionID']}`\n"
+                    f"> **Triggered:** {item['Triggers']}"
+                ),
+                inline=False,
+            )
+
+        if len(current_embed.fields) == 0:
+            current_embed.add_field(
+                name="No Actions",
+                value="> There are no actions in this server.",
+                inline=False,
+            )
+
+        embeds.append(current_embed)
+
+        view = ManageActions(self.bot, ctx.author.id)
+        if len(embeds) > 9:
+            paginator = SelectPagination(
+                self.bot, ctx.author.id, [CustomPage(
+                    embeds=embeds[i],
+                    view=view,
+                    identifier=i
+                ) for i in range(len(embeds))], timeout=60
+            )
+            await ctx.send(embeds=embeds[0].embeds, view=paginator.get_current_view())
+        else:
+            await ctx.send(embeds=embeds, view=view)
+        timeout = await view.wait()
+        if timeout:
+            return
     @commands.guild_only()
     @commands.hybrid_command(
         name="setup",

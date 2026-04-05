@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 import datetime
 import pytz
-from erm import is_management, is_staff, is_admin
+from erm import is_management, is_staff, is_admin, Bot
 from utils.advanced import FakeMessage
 from utils.constants import BLANK_COLOR, GREEN_COLOR
 from ui.MiscButtons import *
@@ -14,68 +14,12 @@ from utils.utils import get_prefix, interpret_content, interpret_embed, log_comm
 from ui.Actions import ManageActions
 class Actions(commands.Cog):
     def __init__(self, bot: commands.Bot):
-        self.bot: commands.Bot = bot
+        self.bot: Bot = bot
 
-    
-    @commands.hybrid_group(
-        name="actions", description="Manage your ERM Actions easily."
-    )
+    @commands.hybrid_group(name="actions", description="Manage your ERM Actions easily.")
+    @is_admin()
     async def actions(self, ctx: commands.Context):
         pass
-
-    @actions.command(name="manage", description="Manage your ERM Actions easily.")
-    @is_admin()
-    async def actions_manage(self, ctx: commands.Context):
-        await log_command_usage(self.bot, ctx.guild, ctx.author, f"Actions Manage")
-        actions = [i async for i in await self.bot.db.actions.find({"Guild": ctx.guild.id})]
-
-        embeds = []
-        current_embed = discord.Embed(title="Actions", color=BLANK_COLOR).set_author(
-            name=ctx.guild.name, icon_url=ctx.guild.icon
-        )
-
-        for item in actions:
-            if len(current_embed.fields) >= 5:
-                embeds.append(current_embed)
-                current_embed = discord.Embed(
-                    title="Actions (cont.)", color=BLANK_COLOR
-                )
-
-            current_embed.add_field(
-                name=item["ActionName"],
-                value=(
-                    f"> **Name:** {item['ActionName']}\n"
-                    f"> **ID:** `{item['ActionID']}`\n"
-                    f"> **Triggered:** {item['Triggers']}"
-                ),
-                inline=False,
-            )
-
-        if len(current_embed.fields) == 0:
-            current_embed.add_field(
-                name="No Actions",
-                value="> There are no actions in this server.",
-                inline=False,
-            )
-
-        embeds.append(current_embed)
-
-        view = ManageActions(self.bot, ctx.author.id)
-        if len(embeds) > 9:
-            paginator = SelectPagination(
-                self.bot, ctx.author.id, [CustomPage(
-                    embeds=embeds[i],
-                    view=view,
-                    identifier=i
-                ) for i in range(len(embeds))], timeout=60
-            )
-            await ctx.send(embeds=embeds[0].embeds, view=paginator.get_current_view())
-        else:
-            await ctx.send(embeds=embeds, view=view)
-        timeout = await view.wait()
-        if timeout:
-            return
-
     @actions.command(name="execute", description="Execute an ERM Action in your server")
     @is_staff()
     @app_commands.autocomplete(action=action_autocomplete)
@@ -105,7 +49,7 @@ class Actions(commands.Cog):
             return await ctx.send(
                 embed=discord.Embed(
                     title="Invalid Action Name",
-                    description="The name you provided does not correspond with an action on this server. Run `/actions manage` for details.",
+                    description="The name you provided does not correspond with an action on this server. Run `/configure actions` for details.",
                     color=BLANK_COLOR,
                 )
             )

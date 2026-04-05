@@ -228,9 +228,9 @@ class Bot(commands.AutoShardedBot):
 
             Extensions = [m.name for m in iter_modules(["cogs"], prefix="cogs.")]
             Events = [m.name for m in iter_modules(["events"], prefix="events.")]
-            BETA_EXT = ["cogs.StaffConduct"]
             EXTERNAL_EXT = ["utils.api"]
             [Extensions.append(i) for i in EXTERNAL_EXT]
+            BETA_EXT = []
             self.reminders_enabled, self.actions_enabled = True, True
             if config("ACTIONS_ENABLED", default="TRUE").upper() != "TRUE":
                 self.actions_enabled = False

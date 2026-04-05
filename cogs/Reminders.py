@@ -11,19 +11,23 @@ from utils.constants import BLANK_COLOR, GREEN_COLOR
 from utils.timestamp import td_format
 from utils.utils import generator, time_converter, require_settings, log_command_usage
 
-
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
+    async def cog_load(self):
+        configure = self.bot.get_command("configure")
+        if configure is None:
+            raise RuntimeError("Configure cog must be loaded before Reminders")
+        self.manage_reminders.cog = self.bot.cogs.get("Configure")
+        configure.add_command(self.manage_reminders)
     @commands.hybrid_group(name="reminders")
     @is_management()
     async def reminders(self, ctx):
         pass
 
     @commands.guild_only()
-    @reminders.command(
-        name="manage",
+    @commands.hybrid_command(
+        name="reminders",
         description="Manage your reminders",
         extras={"category": "Reminders"},
     )
