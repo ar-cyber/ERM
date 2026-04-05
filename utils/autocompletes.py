@@ -25,7 +25,7 @@ async def shift_type_autocomplete(
         return [
             app_commands.Choice(name=shift_type["name"], value=shift_type["name"])
             for shift_type in types
-        ]
+        ][:24]
     else:
         return [app_commands.Choice(name="Default", value="Default")]
 
@@ -104,7 +104,7 @@ async def all_shift_type_autocomplete(
         return [
             app_commands.Choice(name=shift_type["name"], value=shift_type["name"])
             for shift_type in (types + [{"name": "All"}])
-        ]
+        ][:24]
     else:
         return [app_commands.Choice(name="Default", value="Default")]
 
@@ -113,7 +113,7 @@ async def action_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> typing.List[app_commands.Choice[str]]:
     bot = (await Context.from_interaction(interaction)).bot
-    actions = [i async for i in await bot.actions.db.find({"Guild": interaction.guild.id})]
+    actions = [i async for i in bot.actions.db.find({"Guild": interaction.guild.id})]
     if actions in [None, []]:
         return [discord.app_commands.Choice(name="No actions found", value="NULL")]
 
@@ -184,7 +184,7 @@ async def command_autocomplete(
                         value=cmd["name"],
                     )
                 )
-        return commandList
+        return commandList[:24]
 
 
 async def punishment_autocomplete(

@@ -14,41 +14,39 @@ class HelpCommand(commands.HelpCommand):
     def get_command_signature(self, command: commands.Command) -> str:
         return f"{self.clean_prefix}{command.qualified_name} {command.signature}".strip()
 
-    def _make_help_button(self) -> discord.ui.ActionRow:
-        button = discord.ui.Button(label="Get Help Reading This")
+    async def fetch_command_ids(self) -> dict[str, int]:
+        if not hasattr(self, "_command_ids"):
+            fetched = await self.context.bot.tree.fetch_commands()
+            self._command_ids = {cmd.name: cmd.id for cmd in fetched}
+        return self._command_ids
+    
+    async def get_command_mention(self, command: commands.Command) -> str:
+        if not isinstance(command, (commands.HybridCommand, commands.HybridGroup)):
+            return f"`{self.get_command_signature(command)}`"
 
-        async def callback(interaction: discord.Interaction):
-            cont = discord.ui.Container().add_item(
-                discord.ui.TextDisplay(
-                    "### How do I read this?\n"
-                    "Each component of a help command line has a use. They represent different properties of a command, such as their arguments.\n\n"
-                    "**General Scaffold**\n"
-                    "All help commands are formatted like this: \n"
-                    "`prefix[command name] [subcommand if applicable] <required arguments ...=default> [optional arguments]`.\n"
-                    "All of these can be replaced with actual properties, such as: \n`>duty admin Android365436 default`\n\n"
-                    "**But what about `[a|b|c|d]`?**\n"
-                    "These are **command aliases**, which are shortened versions of a command name. \n"
-                    "For example, the lengthy command name `>search` can be run as `>s` instead.\n\n"
-                    "**How do the dot points work?**\n"
-                    "The outer dot-points are the **base command**, which is normally the command name.\nThe inner dot points are the **subcommand**, which is a command that belongs to that base command.\nFor example, `>erlc info` is a subcommand of `>erlc`, however, not all base commands can be run."
-                )
-            )
-            await interaction.response.send_message(
-                view=discord.ui.LayoutView().add_item(cont), ephemeral=True
-            )
+        app_command = command.app_command
+        qualified_name = app_command.qualified_name
+        top_level_name = qualified_name.split()[0]
 
-        button.callback = callback
-        return discord.ui.ActionRow(button)
+        command_ids = await self.fetch_command_ids()
+        cmd_id = command_ids.get(top_level_name)
+        if cmd_id:
+            return f"</{qualified_name}:{cmd_id}>"
 
-    def format_commands(self, commands_list, indent=0):
+        return f"`{self.get_command_signature(command)}`"
+
+    def get_command_description(self, command: commands.Command) -> str:
+        return command.help or command.brief or command.description or "No description provided."
+
+    async def format_commands(self, commands_list, indent=0):
         lines = []
         for c in sorted(commands_list, key=lambda c: c.name):
             prefix = "  " * indent
-            description = c.help or c.brief or c.description
-            description = f" — {description.strip()}" if description else ""
-            lines.append(f"{prefix}- `{self.get_command_signature(c)}`{description}")
+            description = self.get_command_description(c)
+            description = f": {description.strip()}" if description else ""
+            lines.append(f"{prefix}- {await self.get_command_mention(c)}{description}")
             if isinstance(c, commands.Group):
-                lines.extend(self.format_commands(c.commands, indent + 1))
+                lines.extend(await self.format_commands(c.commands, indent + 1))
         return lines
 
     def make_page(self, identifier: str, containers: list[discord.ui.Container]) -> CustomPage:
@@ -85,7 +83,7 @@ class HelpCommand(commands.HelpCommand):
             filtered = await self.filter_commands(all_commands, sort=True)
             if filtered:
                 cog_name = getattr(cog, "qualified_name", "No Category")
-                lines = self.format_commands(filtered)
+                lines = await self.format_commands(filtered)
                 page = self.make_page(
                     cog_name,
                     [
@@ -93,8 +91,7 @@ class HelpCommand(commands.HelpCommand):
                         .add_item(discord.ui.TextDisplay(f"### {cog_name}\n"))
                         .add_item(discord.ui.Separator())
                         .add_item(discord.ui.TextDisplay("\n".join(lines)))
-                        .add_item(discord.ui.Separator())
-                        .add_item(self._make_help_button())
+                        .add_item(discord.ui.TextDisplay("-# These commands should be clickable and will automatically show you the arguments. Ones that do not have these are not executable. Note that Vencord users may not be able to see them regardless."))
                     ],
                 )
                 pages.append(page)
@@ -112,27 +109,26 @@ class HelpCommand(commands.HelpCommand):
             await self._send(content="No commands available in this category.")
             return
 
-        lines = self.format_commands(filtered)
+        lines = await self.format_commands(filtered)
         container = (
             discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {cog.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay("\n".join(lines)))
-            .add_item(discord.ui.Separator())
-            .add_item(self._make_help_button())
         )
         await self._send(view=discord.ui.LayoutView().add_item(container))
 
     async def send_group_help(self, group: commands.Group) -> None:
         filtered = await self.filter_commands(group.commands, sort=True)
+        mention = await self.get_command_mention(group)
 
         container = (
             discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {group.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
-                f"`{self.get_command_signature(group)}`\n"
-                f"{group.help or 'No description provided.'}"
+                f"{mention}\n"
+                f"{self.get_command_description(group)}"
             ))
         )
 
@@ -140,18 +136,20 @@ class HelpCommand(commands.HelpCommand):
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.TextDisplay("### Subcommands"))
             container.add_item(discord.ui.Separator())
-            container.add_item(discord.ui.TextDisplay("\n".join(self.format_commands(filtered))))
+            container.add_item(discord.ui.TextDisplay("\n".join(await self.format_commands(filtered))))
 
         await self._send(view=discord.ui.LayoutView().add_item(container))
 
     async def send_command_help(self, command: commands.Command) -> None:
+        mention = await self.get_command_mention(command)
+
         container = (
             discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {command.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
-                f"`{self.get_command_signature(command)}`\n"
-                f"{command.help or 'No description provided.'}"
+                f"{mention}\n"
+                f"{self.get_command_description(command)}"
             ))
         )
 
