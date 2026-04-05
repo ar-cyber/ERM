@@ -2,27 +2,28 @@ import datetime
 import discord
 from discord.ext import commands
 from utils.constants import BLANK_COLOR
-
+from utils.utils import generalised_interaction_check_failure
 
 class Privacy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     class ConsentContainer(discord.ui.Container):
-        def __init__(self, bot, data):
+        def __init__(self, bot, user: discord.Member, data):
             super().__init__()
             self.bot = bot
+            self.user = user
             self.action_row = discord.ui.ActionRow()
-            self.add_item(discord.ui.TextDisplay(
+            self.add_item(discord.ui.Section(discord.ui.TextDisplay(
                 (
                     "### User Configurations\n"
-                    "This is where you can select your opted in features for ERM. All of these are on by default, however, you can change the status of these.\n"
+                    "This is where you can select your opted in features for ERM. All of these are on by default, however, you can change the status of these.\n\n"
                     "**Configurations**\n"
                     "> **Punishment Alerts**: Toggle being alerted when you are punished.\n"
                     "> **Shift Logging**: Consent to your shifts being logged by ERM.\n"
                     "> **Automatic Shifts**: Allow shifts to be started when you join a server you are a moderator in."
                 )
-            )).add_item(discord.ui.Separator())
+            ), accessory=discord.ui.Thumbnail(media=user.avatar.with_format("png").url))).add_item(discord.ui.Separator())
             self.punishments_button = discord.ui.Button(label = "Punishment Alerts", emoji=bot.emoji_controller.get_emoji('check') if data.get("punishments", True) is True else bot.emoji_controller.get_emoji('xmark'), style=discord.ButtonStyle.green if data.get("punishments", True) is True else discord.ButtonStyle.red)
             self.shift_button = discord.ui.Button(label = "Shift Logging", emoji=bot.emoji_controller.get_emoji('check') if data.get("shift_reports", True) is True else bot.emoji_controller.get_emoji('xmark'), style=discord.ButtonStyle.green if data.get("shift_reports", True) is True else discord.ButtonStyle.red)
             self.automatic_shifts = discord.ui.Button(label = "Automatic Shifts", emoji=bot.emoji_controller.get_emoji('check') if data.get("automatic_shifts", True) is True else bot.emoji_controller.get_emoji('xmark'), style=discord.ButtonStyle.green if data.get("automatic_shifts", True) is True else discord.ButtonStyle.red)
@@ -85,7 +86,12 @@ class Privacy(commands.Cog):
             self.automatic_shifts.style = discord.ButtonStyle.green if status else discord.ButtonStyle.red
             self.automatic_shifts.emoji = self.bot.emoji_controller.get_emoji('check') if status else self.bot.emoji_controller.get_emoji('xmark')
             await interaction.response.edit_message(view=self.view)
-            
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if interaction.user.id != self.user.id:
+                await interaction.response.defer()
+                await generalised_interaction_check_failure(interaction.followup)
+                return False
+            return True
     @commands.guild_only()
     @commands.hybrid_command(
         name="consent",
@@ -97,7 +103,7 @@ class Privacy(commands.Cog):
         data = await bot.consent.find_by_id(ctx.author.id)
 
         view = discord.ui.LayoutView()
-        view.add_item(self.ConsentContainer(self.bot, data))
+        view.add_item(self.ConsentContainer(self.bot, ctx.author, data))
         await ctx.reply(view=view)
 
 

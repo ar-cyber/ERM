@@ -76,7 +76,8 @@ async def generalised_interaction_check_failure(
                 title="Not Permitted",
                 description="You are not permitted to interact with these buttons.",
                 color=BLANK_COLOR,
-            )
+            ),
+            ephemeral=True
         )
 
 
