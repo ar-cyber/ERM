@@ -25,7 +25,7 @@ class OnGuildJoin(commands.Cog):
                 embed.set_thumbnail(url=guild.icon)
             except AttributeError:
                 pass
-            await channel.send(embed=embed)
+            await channel.send(_cv2_skip=True, embed=embed)
             logging.info("Server has been sent welcome sequence.")
 
 
