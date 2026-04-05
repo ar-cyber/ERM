@@ -5,8 +5,17 @@ from discord.ext import commands
 
 
 class HelpCommand(commands.HelpCommand):
+    @property
+    def clean_prefix(self) -> str:
+        if self.context.interaction is not None:
+            return "/"
+        return self.context.clean_prefix
+
+    def get_command_signature(self, command: commands.Command) -> str:
+        return f"{self.clean_prefix}{command.qualified_name} {command.signature}".strip()
+
     def _make_help_button(self) -> discord.ui.ActionRow:
-        button = discord.ui.Button(label="Get Help Reading This", emoji="❔")
+        button = discord.ui.Button(label="Get Help Reading This")
 
         async def callback(interaction: discord.Interaction):
             cont = discord.ui.Container().add_item(
@@ -22,7 +31,6 @@ class HelpCommand(commands.HelpCommand):
                     "For example, the lengthy command name `>search` can be run as `>s` instead.\n\n"
                     "**How do the dot points work?**\n"
                     "The outer dot-points are the **base command**, which is normally the command name.\nThe inner dot points are the **subcommand**, which is a command that belongs to that base command.\nFor example, `>erlc info` is a subcommand of `>erlc`, however, not all base commands can be run."
-
                 )
             )
             await interaction.response.send_message(
@@ -31,12 +39,14 @@ class HelpCommand(commands.HelpCommand):
 
         button.callback = callback
         return discord.ui.ActionRow(button)
+
     def format_commands(self, commands_list, indent=0):
         lines = []
         for c in sorted(commands_list, key=lambda c: c.name):
             prefix = "  " * indent
             description = c.help or c.brief or c.description
-            lines.append(f"{prefix}- `{self.get_command_signature(c).strip()}`: {description}")
+            description = f" — {description.strip()}" if description else ""
+            lines.append(f"{prefix}- `{self.get_command_signature(c)}`{description}")
             if isinstance(c, commands.Group):
                 lines.extend(self.format_commands(c.commands, indent + 1))
         return lines
@@ -54,13 +64,25 @@ class HelpCommand(commands.HelpCommand):
             pages,
         )
 
+    async def _send(self, **kwargs):
+        ctx = self.context
+        if ctx.interaction is not None:
+            await ctx.interaction.followup.send(**kwargs)
+        else:
+            await ctx.reply(**kwargs)
+
     async def send_bot_help(
         self,
         mapping: Mapping[commands.Cog | None, List[commands.Command[Any, Callable[..., Any], Any]]],
     ) -> None:
         pages = []
         for cog, commands_list in mapping.items():
-            filtered = await self.filter_commands(commands_list, sort=True)
+            all_commands = list(commands_list)
+            for cmd in self.context.bot.commands:
+                if cmd not in all_commands and getattr(cmd.cog, "qualified_name", None) == getattr(cog, "qualified_name", None):
+                    all_commands.append(cmd)
+
+            filtered = await self.filter_commands(all_commands, sort=True)
             if filtered:
                 cog_name = getattr(cog, "qualified_name", "No Category")
                 lines = self.format_commands(filtered)
@@ -78,88 +100,75 @@ class HelpCommand(commands.HelpCommand):
                 pages.append(page)
 
         if not pages:
-            await self.get_destination().send("No commands available.")
+            await self._send(content="No commands available.")
             return
 
         paginator = self._send_paginator(pages)
-        await self.get_destination().send(view=paginator.get_current_view())
+        await self._send(view=paginator.get_current_view())
 
     async def send_cog_help(self, cog: commands.Cog) -> None:
         filtered = await self.filter_commands(cog.get_commands(), sort=True)
         if not filtered:
-            await self.get_destination().send("No commands available in this category.")
+            await self._send(content="No commands available in this category.")
             return
 
         lines = self.format_commands(filtered)
-
-        containers = [
+        container = (
             discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {cog.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay("\n".join(lines)))
-        ]
-        view = discord.ui.LayoutView()
-        for item in containers:
-            view.add_item(item)
-        await self.get_destination().send(view=view)
+            .add_item(discord.ui.Separator())
+            .add_item(self._make_help_button())
+        )
+        await self._send(view=discord.ui.LayoutView().add_item(container))
 
     async def send_group_help(self, group: commands.Group) -> None:
         filtered = await self.filter_commands(group.commands, sort=True)
 
-        containers = [
+        container = (
             discord.ui.Container()
             .add_item(discord.ui.TextDisplay(f"### {group.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
                 f"`{self.get_command_signature(group)}`\n"
-                f"{group.help or group.description or 'No description provided.'}"
+                f"{group.help or 'No description provided.'}"
             ))
-        ]
+        )
 
         if filtered:
-            containers.append(
-                discord.ui.Container()
-                .add_item(discord.ui.TextDisplay("### Subcommands"))
-                .add_item(discord.ui.Separator())
-                .add_item(discord.ui.TextDisplay("\n".join(self.format_commands(filtered))))
-            )
-        view = discord.ui.LayoutView()
-        for item in containers:
-            view.add_item(item)
-        await self.get_destination().send(view=view)
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("### Subcommands"))
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("\n".join(self.format_commands(filtered))))
+
+        await self._send(view=discord.ui.LayoutView().add_item(container))
 
     async def send_command_help(self, command: commands.Command) -> None:
-        containers = [
+        container = (
             discord.ui.Container()
-            .add_item(discord.ui.TextDisplay(f"### `{command.qualified_name}`"))
+            .add_item(discord.ui.TextDisplay(f"### {command.qualified_name}"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(
                 f"`{self.get_command_signature(command)}`\n"
-                f"{command.help or command.description or 'No description provided.'}"
+                f"{command.help or 'No description provided.'}"
             ))
-        ]
+        )
 
         if command.aliases:
             alias_tags = "\n".join(f"> `{a}`" for a in command.aliases)
-            containers.append(
-                discord.ui.Container()
-                .add_item(discord.ui.TextDisplay("### Aliases"))
-                .add_item(discord.ui.Separator())
-                .add_item(discord.ui.TextDisplay(alias_tags))
-            )
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("### Aliases"))
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay(alias_tags))
 
-        view = discord.ui.LayoutView()
-        for item in containers:
-            view.add_item(item)
-        await self.get_destination().send(view=view)
+        await self._send(view=discord.ui.LayoutView().add_item(container))
 
     async def send_error_message(self, error: str) -> None:
         container = (
-            discord.ui.Container(accent_colour=discord.Colour.red())
+            discord.ui.Container()
             .add_item(discord.ui.TextDisplay("### Error"))
             .add_item(discord.ui.Separator())
             .add_item(discord.ui.TextDisplay(error))
         )
-        await self.get_destination().send(
-            view=discord.ui.LayoutView().add_item(container)
-        )
+        await self._send(view=discord.ui.LayoutView().add_item(container))

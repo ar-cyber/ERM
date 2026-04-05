@@ -533,7 +533,25 @@ class Utility(commands.Cog):
                     ),
                     ephemeral=isinstance(ctx.interaction, discord.Interaction),
                 )
-
+    @app_commands.command(name="help", description="Get help with ERM!")
+    @app_commands.describe(command="The command, subcommand, or cog to get help with.")
+    async def _help(self, interaction: discord.Interaction, command: str = None):
+        # my internet is slow so I'm going to defer it anyway
+        await interaction.response.defer(thinking=True)
+        ctx = await self.bot.get_context(interaction)
+        help_command = self.bot.help_command.copy()
+        help_command.context = ctx
+        if command is None:
+            mapping = help_command.get_bot_mapping()
+            await help_command.send_bot_help(mapping)
+        else:
+            cmd = self.bot.get_command(command)
+            if cmd is None:
+                await help_command.send_error_message(f"Command `{command}` not found.")
+            elif isinstance(cmd, commands.Group):
+                await help_command.send_group_help(cmd)
+            else:
+                await help_command.send_command_help(cmd)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
