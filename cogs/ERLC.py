@@ -941,65 +941,85 @@ class ERLC(commands.Cog):
     @is_erlc_server_linked()
     async def server_staff(self, ctx: commands.Context):
         guild_id = int(ctx.guild.id)
-        status: ServerStatus = await self.bot.prc_api.get_server_status(guild_id)
-        players: list[Player] = await self.bot.prc_api.get_server_players(guild_id)
+        async def check_server_staff(msg, guild_id: int):
+            players: list[Player] = await self.bot.prc_api.get_server_players(guild_id)
 
-        actual_players = []
-        key_maps = {}
-        for item in players:
-            if item.permission == "Normal":
-                actual_players.append(item)
-            else:
-                if item.permission not in key_maps:
-                    key_maps[item.permission] = [item]
+            actual_players = []
+            key_maps = {}
+            for item in players:
+                if item.permission == "Normal":
+                    actual_players.append(item)
                 else:
-                    key_maps[item.permission].append(item)
-        view = discord.ui.LayoutView()
-        c = discord.ui.Container()
-        cont = discord.ui.Section(accessory=discord.ui.Thumbnail(
-            media=ctx.guild.icon.with_format("png").url
-        ))
-        
-        new_maps = ["Server Owners", "Server Administrator", "Server Moderator"]
-        new_vals = [
-            key_maps.get("Server Owner", []) + key_maps.get("Server Co-Owner", []),
-            key_maps.get("Server Administrator", []),
-            key_maps.get("Server Moderator", []),
-        ]
-        new_keymap = dict(zip(new_maps, new_vals))
-        values = (
-            f"-# {ctx.guild.name}\n"
-            f"### Online Staff Members [{sum([len(i) for i in new_vals])}]\n"
-        )
-
-        for key, value in new_keymap.items():
-            if value:
-                value_length = len(value)
-                value = "\n".join(
-                    [
-                        f"[{plr.username}](https://roblox.com/users/{plr.id}/profile)"
-                        for plr in value
-                    ]
-                )
-                values += (
-                        f"**{key} [{value_length}]**\n"
-                        f"{value}\n")
-                
-
-                # embed2.add_field(
-                #     name=f"{key} [{value_length}]", value=value, inline=False
-                # )
-
-        if sum([len(i) for i in new_vals]) == 0:
-            values += "> There are no online staff members."
-        cont.add_item(
-            discord.ui.TextDisplay(
-                values
+                    if item.permission not in key_maps:
+                        key_maps[item.permission] = [item]
+                    else:
+                        key_maps[item.permission].append(item)
+            view = discord.ui.LayoutView()
+            c = discord.ui.Container()
+            cont = discord.ui.Section(accessory=discord.ui.Thumbnail(
+                media=ctx.guild.icon.with_format("png").url
+            ))
+            
+            new_maps = ["Server Owners", "Server Administrator", "Server Moderator"]
+            new_vals = [
+                key_maps.get("Server Owner", []) + key_maps.get("Server Co-Owner", []),
+                key_maps.get("Server Administrator", []),
+                key_maps.get("Server Moderator", []),
+            ]
+            new_keymap = dict(zip(new_maps, new_vals))
+            values = (
+                f"-# {ctx.guild.name}\n"
+                f"### Online Staff Members [{sum([len(i) for i in new_vals])}]\n"
             )
-        )
-        view.add_item(c.add_item(cont))
-        await ctx.send(view=view)
 
+            for key, value in new_keymap.items():
+                if value:
+                    value_length = len(value)
+                    value = "\n".join(
+                        [
+                            f"[{plr.username}](https://roblox.com/users/{plr.id}/profile)"
+                            for plr in value
+                        ]
+                    )
+                    values += (
+                            f"**{key} [{value_length}]**\n"
+                            f"{value}\n")
+                    
+
+                    # embed2.add_field(
+                    #     name=f"{key} [{value_length}]", value=value, inline=False
+                    # )
+
+            if sum([len(i) for i in new_vals]) == 0:
+                values += "> There are no online staff members."
+            cont.add_item(
+                discord.ui.TextDisplay(
+                    values
+                )
+            )
+            c.add_item(cont)
+            c.add_item(discord.ui.Separator())
+            row = discord.ui.ActionRow(
+                ReloadButton(
+                    self.bot,
+                    ctx.author.id,
+                    check_server_staff,
+                    [None, guild_id],
+                )
+            )
+            
+            c.add_item(row)
+            view.add_item(c)
+            if msg is None:
+                msg = await ctx.reply(view=view)
+                c.children[2].children[0].message = msg
+                c.children[2].children[0].callback_args[0] = msg
+            else:
+                c.remove_item(row)
+                cont = discord.ui.LayoutView().add_item(c)
+                await msg.edit(view=cont, allowed_mentions=discord.AllowedMentions.none())
+                del cont
+        await check_server_staff(None, guild_id)
     @server.command(name="kills", description="See the Kill Logs of your server.")
     @is_staff()
     @is_erlc_server_linked()

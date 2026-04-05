@@ -6,7 +6,6 @@ import reactionmenu
 import typing
 
 from erm import Bot
-from menus import CustomSelectMenu
 from ui.Selects import CustomDropdown
 from utils.constants import BLANK_COLOR
 from utils.utils import generalised_interaction_check_failure

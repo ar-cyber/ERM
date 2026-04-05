@@ -69,6 +69,7 @@ from utils.utils import *
 from utils.constants import *
 import utils.prc_api
 
+from utils.help_command import HelpCommand
 
 _global_fetch_semaphore = asyncio.Semaphore(45)
 _fetch_delays = defaultdict(float)
@@ -314,10 +315,8 @@ bot = Bot(
     command_prefix=get_prefix,
     case_insensitive=True,
     intents=intents,
-    help_command=None,
-    allowed_mentions=discord.AllowedMentions(
-        replied_user=False, everyone=False, roles=False
-    ),
+    help_command=HelpCommand(),
+    allowed_mentions=discord.AllowedMentions.none()
 )
 bot.is_synced = False
 bot.shift_management_disabled = False
