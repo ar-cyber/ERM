@@ -803,23 +803,18 @@ class ERLC(commands.Cog):
                 await self.secure_logging(
                     ctx.guild.id, ctx.author.id, "Command", command, True
                 )
-                if ctx.interaction:
-                    await ctx.interaction.followup.send(
-                        embed=discord.Embed(
-                            title="Not Authorized",
-                            description="This command is privileged and requires special elevation.",
-                            color=BLANK_COLOR,
-                        ),
-                        ephemeral=True,
-                    )
-                else:
-                    await ctx.send(
-                        embed=discord.Embed(
-                            title="Not Authorized",
-                            description="This command is privileged and requires special elevation.",
-                            color=BLANK_COLOR,
-                        )
-                    )
+                await (
+                    ctx.send
+                    if not ctx.interaction
+                    else ctx.interaction.followup.send
+                )(
+                    embed=discord.Embed(
+                        title="Not Authorized",
+                        description="This command is privileged and requires special elevation.",
+                        color=BLANK_COLOR,
+                    ),
+                    ephemeral=True,
+                )
                 return
 
         guild_id = int(ctx.guild.id)
@@ -1116,7 +1111,7 @@ class ERLC(commands.Cog):
 
         await operate_and_reload_playerlogs(None, guild_id)
 
-    @server.command(name="logs", description="See the Command Logs of your server.")
+    @server.command(name="logs", description="See the Command Logs of your server.", aliases=["commandlogs"])
     @is_staff()
     @is_erlc_server_linked()
     async def commandlogs(self, ctx: commands.Context):
@@ -1128,37 +1123,45 @@ class ERLC(commands.Cog):
             command_logs: list[CommandLog] = await self.bot.prc_api.fetch_server_logs(
                 guild_id
             )
-            embed = discord.Embed(
-                color=BLANK_COLOR, title="Command Logs", description=""
-            )
+            cont = discord.ui.Container()
+            container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Command Logs"))
+            
+            value = ""
 
             sorted_logs = sorted(
                 command_logs, key=lambda log: log.timestamp, reverse=True
             )
             for log in sorted_logs:
-                if len(embed.description) > 3800:
+                if len(value) > 3800:
                     break
-                embed.description += f"> [{log.username}](https://roblox.com/users/{log.user_id}/profile) ran the command `{log.command}` • <t:{int(log.timestamp)}:R>\n"
+                value += f"> [{log.username}](https://roblox.com/users/{log.user_id}/profile) ran the command `{log.command}` • <t:{int(log.timestamp)}:R>\n"
 
-            if embed.description in ["", "\n"]:
-                embed.description = "> No player logs found."
+            if value in ["", "\n"]:
+                value = "> No command logs found."
 
-            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
+            
+            container.add_item(discord.ui.TextDisplay(value))
+            cont.add_item(container).add_item(discord.ui.Separator())
 
-            # embed.set_footer(icon_url="https://cdn.discordapp.com/emojis/1176999148084535326.webp?size=128&quality=lossless",
-            #                   text="Last updated 5 seconds ago")
-            if msg is None:
-                view = ReloadView(
+            row = discord.ui.ActionRow(
+                ReloadButton(
                     self.bot,
                     ctx.author.id,
                     operate_and_reload_commandlogs,
                     [None, guild_id],
                 )
-                msg = await ctx.send(embed=embed, view=view)
-                view.message = msg
-                view.callback_args[0] = msg
+            )
+            cont.add_item(row)
+            if msg is None:
+                view = discord.ui.LayoutView().add_item(cont)
+                msg = await ctx.send(view=view)
+                cont.children[2].children[0].message = msg
+                cont.children[2].children[0].callback_args[0] = msg
             else:
-                await msg.edit(embed=embed)
+                cont.remove_item(row)
+                view = discord.ui.LayoutView().add_item(cont)
+                await msg.edit(view=view, allowed_mentions=discord.AllowedMentions.none())
+                del view
 
         await operate_and_reload_commandlogs(None, guild_id)
 
@@ -1183,7 +1186,13 @@ class ERLC(commands.Cog):
                     color=BLANK_COLOR,
                 )
             )
-        embed = discord.Embed(color=BLANK_COLOR, title="Bans", description="")
+        
+        cont = discord.ui.Container()
+        container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(f"-# {ctx.guild.name}\n### Bans")
+        
+        value = ""
+        pages = []
+
         status = username or user_id
 
         if not username and user_id:
@@ -1191,39 +1200,36 @@ class ERLC(commands.Cog):
 
         if not user_id and username:
             user_id = "99999"
-        old_embed = copy.copy(embed)
-        embeds = [embed]
+
         for log in bans:
             if str(username or "") in str(log.username).lower() or str(
                 user_id or ""
             ) in str(log.user_id):
-                embed = embeds[-1]
-                if len(embed.description) > 3800:
-                    new = copy.copy(old_embed)
-                    embeds.append(new)
-                embeds[
-                    -1
-                ].description += f"> [{log.username}:{log.user_id}](https://roblox.com/users/{log.user_id}/profile)\n"
 
-        if embeds[0].description in ["", "\n"]:
-            embeds[0].description = (
-                "> This ban was not found."
-                if status
-                else "> Bans were not found in your server."
-            )
+                value += f"> [{log.username}:{log.user_id}](https://roblox.com/users/{log.user_id}/profile)\n"
+                if len(value) > 3000:
+                    container.add_item(discord.ui.TextDisplay(value))
+                    cont.add_item(container)
+                    page = CustomPageV2(containers=[cont], identifier = str(len(pages) + 1 ))
+                    pages.append(page)
+                    cont = discord.ui.Container()
+                    container = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item("-# {ctx.guild.name}\n### Bans")
 
-        embeds[0].set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
-
-        if len(embeds) > 1:
-            pages = [
-                CustomPage(embeds=[embeds[i]], identifier=str(i + 1))
-                for i in range(0, len(embeds) - 1)
-            ]
-            paginator = SelectPagination(self.bot, ctx.author.id, pages)
-            await ctx.send(embed=embeds[0], view=paginator.get_current_view())
+        if len(pages) == 0:
+            if value in ["", "\n"]:
+                value = (
+                    "> This ban was not found."
+                    if status
+                    else "> Bans were not found in your server."
+                )
+            container.add_item(discord.ui.TextDisplay(value))
+            cont.add_item(container).add_item(discord.ui.Separator())
+            await ctx.send(view=discord.ui.LayoutView().add_item(cont))
             return
-        else:
-            await ctx.send(embed=embeds[0])
+        paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
+        await ctx.reply(
+            view=paginator.get_current_view(),
+        )
             
     @server.command(name="players", description="See all players in the server.")
     @is_erlc_server_linked()
