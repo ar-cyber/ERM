@@ -1237,12 +1237,11 @@ class ERLC(commands.Cog):
         self, ctx: commands.Context, filter: typing.Optional[str] = None
     ):
         guild_id = int(ctx.guild.id)
-        # status: ServerStatus = await self.bot.prc_api.get_server_status(guild_id)
         players: list[Player] = await self.bot.prc_api.get_server_players(guild_id)
         queue: list[Player] = await self.bot.prc_api.get_server_queue(guild_id)
-        embed2 = discord.Embed(
-            title=f"Server Players [{len(players)}]", color=BLANK_COLOR, description=""
-        )
+        container = discord.ui.Container()
+        cont = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Players\n"))
+        value = ""
         actual_players = []
         key_maps = {}
         staff = []
@@ -1264,7 +1263,7 @@ class ERLC(commands.Cog):
                     staff_copy.append(item)
             staff = staff_copy
 
-        embed2.description += f"**Server Staff [{len(staff)}]**\n" + (
+        value += f"**Server Staff [{len(staff)}]**\n" + (
             ", ".join(
                 [
                     f"[{plr.username} ({plr.team})](https://roblox.com/users/{plr.id}/profile)"
@@ -1274,7 +1273,7 @@ class ERLC(commands.Cog):
             or "> No players in this category."
         )
 
-        embed2.description += f"\n\n**Online Players [{len(actual_players)}]**\n" + (
+        value += f"\n\n**Online Players [{len(actual_players)}]**\n" + (
             ", ".join(
                 [
                     f"[{plr.username} ({plr.team})](https://roblox.com/users/{plr.id}/profile)"
@@ -1284,7 +1283,7 @@ class ERLC(commands.Cog):
             or "> No players in this category."
         )
 
-        embed2.description += f"\n\n**Queue [{len(queue)}]**\n" + (
+        value += f"\n\n**Queue [{len(queue)}]**\n" + (
             ", ".join(
                 [
                     f"[{plr.username}](https://roblox.com/users/{plr.id}/profile)"
@@ -1293,24 +1292,11 @@ class ERLC(commands.Cog):
             )
             or "> No players in this category."
         )
-
-        embed2.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
-        if len(embed2.description) > 3999:
-            embed2.description = ""
-            embed2.description += f"**Server Staff [{len(staff)}]**\n" + ", ".join(
-                [f"{plr.username} ({plr.team})" for plr in staff]
-            )
-
-            embed2.description += (
-                f"\n\n**Online Players [{len(actual_players)}]**\n"
-                + ", ".join([f"{plr.username} ({plr.team})" for plr in actual_players])
-            )
-
-            embed2.description += f"\n\n**Queue [{len(queue)}]**\n" + ", ".join(
-                [f"{plr.username}" for plr in queue]
-            )
-
-        await ctx.send(embed=embed2)
+        if len(value) > 3999:
+            value = "> The list is too long to display."
+        cont.add_item(discord.ui.TextDisplay(value))
+        container.add_item(cont)
+        await ctx.reply(view=discord.ui.LayoutView().add_item(container))
 
     @server.command(
         name="teams", description="See all players in the server, grouped by team."
@@ -1322,11 +1308,10 @@ class ERLC(commands.Cog):
     ):
         guild_id = int(ctx.guild.id)
         players: list[Player] = await self.bot.prc_api.get_server_players(guild_id)
-        embed2 = discord.Embed(
-            title=f"Server Players by Team [{len(players)}]",
-            color=BLANK_COLOR,
-            description="",
-        )
+        container = discord.ui.Container()
+        cont = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Players by Team [{len(players)}]"))
+
+        value = ""
 
         teams = {}
         for plr in players:
@@ -1335,13 +1320,14 @@ class ERLC(commands.Cog):
             if plr.team not in teams:
                 teams[plr.team] = []
             teams[plr.team].append(plr)
-
+        pages = []
         team_order = ["Police", "Sheriff", "Fire", "DOT", "Civilian"]
         for team in team_order:
             team_players = []
             if team in teams:
                 team_players = teams[team]
-            embed2.description += (
+
+            value += (
                 f"**{team} [{len(team_players)}]**\n"
                 + ", ".join(
                     [
@@ -1351,15 +1337,27 @@ class ERLC(commands.Cog):
                 )
                 + "\n\n"
             )
-        if embed2.description.strip() == "":
-            embed2.description = "> There are no players in-game."
+            if len(value) > 3999:
+                cont.add_item(discord.ui.TextDisplay(value))
+                container.add_item(cont)
+                page = CustomPageV2(containers = [cont], identifier = str(len(pages) + 1))
+                pages.append(page)
+                container = discord.ui.Container()
+                cont = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### Server Players by Team [{len(players)}]"))
+                value = ""
 
-        embed2.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
+        if len(pages) == 0:
+            if value in ["", "\n"]:
+                value = (
+                    "> There are no players in game."
+                )
+            cont.add_item(discord.ui.TextDisplay(value))
+            container.add_item(cont).add_item(discord.ui.Separator())
+            await ctx.send(view=discord.ui.LayoutView().add_item(container))
+            return
+        paginator = SelectPaginationV2(self.bot, ctx.author.id, pages)
 
-        if len(embed2.description) > 3999:
-            embed2.description = "> The list is too long to display."
-
-        await ctx.send(embed=embed2)
+        await ctx.send(view=paginator.get_current_view())
 
     @server.command(
         name="vehicles", description="See all vehicles of players in the server."
