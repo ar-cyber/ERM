@@ -1371,14 +1371,8 @@ class ERLC(commands.Cog):
             await self.bot.prc_api.get_server_vehicles(guild_id)
         )
 
-        if len(vehicles) <= 0:
-            emb = discord.Embed(
-                title=f"Server Vehicles [{len(vehicles)}/{len(players)}]",
-                description="> There are no active vehicles in your server.",
-                color=BLANK_COLOR,
-            )
-            emb.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
-            return ctx.send(embed=emb)
+        cont = discord.ui.Container()
+        container = discord.ui.Section(accessory=discord.ui.Thumbnail(ctx.guild.icon.with_format("png").url)).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n"))
 
         matched = {}
         for item in vehicles:
@@ -1394,31 +1388,37 @@ class ERLC(commands.Cog):
             else:
                 staff.append(item)
 
-        descriptions = []
-        description = ""
-        for index, (veh, plr) in enumerate(matched.items()):
-            description += f"[{plr.username}](https://roblox.com/users/{plr.id}/profile) - {veh.vehicle} **({veh.texture})**\n"
-            if (index + 1) % 10 == 0 or (index + 1) == len(matched):
-                descriptions.append(description)
-                description = ""
-
-        if not descriptions:
-            descriptions.append("> There are no active vehicles in your server.")
-
         pages = []
-        for index, description in enumerate(descriptions):
-            embed = discord.Embed(
-                title=f"Server Vehicles [{len(vehicles)}/{len(players)}]",
-                color=BLANK_COLOR,
-                description=description,
-            )
-            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
+        value = ""
+        for index, (veh, plr) in enumerate(matched.items()):
+            value += f"[{plr.username}](https://roblox.com/users/{plr.id}/profile) - {veh.vehicle} **({veh.texture})**\n"
+            if len(value) > 3999:
+                container.add_item(
+                    discord.ui.TextDisplay(
+                        (
+                            f"### Server Vehicles [{len(vehicles)}/{len(players)}]\n"
+                            f"{value}"
+                        )
+                    )
+                )
+                cont.add_item(container)
+                pages.append(CustomPageV2(containers=[cont], identifer=str(len(pages) + 1)))
+                cont = discord.ui.Container()
+                container = discord.ui.Section(accessory=ctx.guild.icon.with_format("png").url).add_item(discord.ui.TextDisplay(f"-# {ctx.guild.name}\n"))
 
-            page = CustomPage(embeds=[embed], identifier=embed.title, view=None)
-            pages.append(page)
-
-        paginator = SelectPagination(self.bot, ctx.author.id, pages)
-        await ctx.send(embeds=pages[0].embeds, view=paginator.get_current_view())
+        if len(pages) == 0:
+            if value in ["", "\n"]:
+                value = (
+                    f"### Server Vehicles [{len(vehicles)}/{len(players)}]\n"
+                    "> There are no active vehicles in your server"
+                )
+            container.add_item(discord.ui.TextDisplay(f"### Server Vehicles [{len(vehicles)}/{len(players)}]\n" + value))
+            cont.add_item(container).add_item(discord.ui.Separator())
+            await ctx.send(view=discord.ui.LayoutView().add_item(cont))
+            return
+        
+        paginator = SelectPaginationV2(self.bot, ctx.author.id, pages) 
+        await ctx.send(view=paginator.get_current_view())
 
     @server.command(
         name="check",
