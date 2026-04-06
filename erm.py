@@ -137,7 +137,7 @@ class Bot(commands.AutoShardedBot):
         # IDs are a security vulnerability.
 
         # Else fall back to the original
-        if user.id == 1394817794427846737:
+        if user.id in [1482390498785366212]:
             return True
 
         if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol
