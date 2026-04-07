@@ -8,7 +8,7 @@ import typing
 from erm import Bot
 from ui.Selects import CustomDropdown
 from utils.constants import BLANK_COLOR
-from utils.utils import generalised_interaction_check_failure
+from utils.utils import generalised_interaction_check_failure, chunk_list
 import asyncio
 import nest_asyncio
 
@@ -198,20 +198,43 @@ class SelectPagination(discord.ui.View):
             )
         ).add_item(
             discord.ui.Separator()
-        ).add_item(
-            discord.ui.ActionRow(
-            CustomDropdown(
-                self.user_id,
-                [
-                    discord.SelectOption(label=page.identifier, value=str(index))
-                    for index, page in enumerate(self.pages)
-                ],
-            ))
         )
+        containers: list[discord.ui.Container] = []
+        containers.append(cont)
+        page_chunks = list(chunk_list(self.pages, 25))  # 25 options per select
+
+        for container_index in range(4):  # max 4 containers
+            if not page_chunks:
+                break
+
+            container = discord.ui.Container()
+
+            for _ in range(5):  # max 5 selects per container
+                if not page_chunks:
+                    break
+
+                chunk = page_chunks.pop(0)
+
+                options = [
+                    discord.SelectOption(label=page.identifier, value=str(index))
+                    for index, page in enumerate(chunk)
+                ]
+
+                container.add_item(
+                    discord.ui.ActionRow(
+                        CustomDropdown(self.user_id, options)
+                    )
+                )
+
+            containers.append(container)
+            
+        view = discord.ui.LayoutView()
+        for container in containers:
+            view.add_item(container)
         msg = await interaction.followup.send(
             embed=None,
-            view=(view := discord.ui.LayoutView().add_item(cont))
-        )
+            view=view)
+        
 
         await view.wait()
         index = int(view.value or "1000")

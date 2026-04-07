@@ -21,6 +21,8 @@ import utils.prc_api as prc_api
 from utils.constants import BLANK_COLOR, RED_COLOR
 from utils.prc_api import ServerStatus, Player
 
+from itertools import islice
+
 
 class ArgumentMockingInstance:
     def __init__(self, **kwargs):
@@ -698,3 +700,20 @@ async def secure_logging(
                     color=RED_COLOR,
                 ).set_footer(text=f"Private Server: {server_status.join_key}")
             )
+
+def chunk_list(lst, size):
+    """
+    Splits a list into chunks for paginators to catch up
+    """
+    if not isinstance(lst, list):
+        raise TypeError("Input must be a list.")
+    if not isinstance(size, int) or size <= 0:
+        raise ValueError("Chunk size must be a positive integer.")
+
+    it = iter(lst)
+    while True:
+        chunk = list(islice(it, size))
+        if not chunk:
+            break
+        yield chunk
+

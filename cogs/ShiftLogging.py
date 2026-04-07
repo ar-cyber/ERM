@@ -925,9 +925,12 @@ class ShiftLogging(commands.Cog):
                             shift_type = shift_types[0] # default to zero - instead of error
                 else:
                     return
-
+        msg = await ctx.reply("<a:Loading:1044067865453670441> **Loading...**")
         pipeline = [
             {"$match": {"Guild": ctx.guild.id, "EndEpoch": {"$ne": 0}}},
+            {
+                "$limit": 100
+            },
             {
                 "$group": {
                     "_id": "$UserID",
@@ -959,7 +962,10 @@ class ShiftLogging(commands.Cog):
             pipeline[0]["$match"]["Type"] = shift_type["name"]
 
         all_staff = {}
+        cnt = 0
         async for doc in await bot.shift_management.shifts.db.aggregate(pipeline):
+            if cnt % 10 == 0:
+                await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (calculated {cnt} results)")
             total_seconds = doc["total_seconds"]
 
             # Calculate total break time for the shift
@@ -980,6 +986,7 @@ class ShiftLogging(commands.Cog):
                 "moderations": doc["moderations"],
                 "lowest_time": doc["lowest_time"],
             }
+            cnt += 1
 
         # Fetch additional moderation data in bulk
         mod_ids = [
