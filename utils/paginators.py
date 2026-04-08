@@ -201,7 +201,8 @@ class SelectPagination(discord.ui.View):
         )
         containers: list[discord.ui.Container] = []
         containers.append(cont)
-        page_chunks = list(chunk_list(self.pages, 25))  # 25 options per select
+        indexed_pages = list(enumerate(self.pages))
+        page_chunks = list(chunk_list(indexed_pages, 25))  # 25 options per select
 
         for container_index in range(4):  # max 4 containers
             if not page_chunks:
@@ -217,7 +218,7 @@ class SelectPagination(discord.ui.View):
 
                 options = [
                     discord.SelectOption(label=page.identifier, value=str(index))
-                    for index, page in enumerate(chunk)
+                    for index, page in chunk
                 ]
 
                 container.add_item(

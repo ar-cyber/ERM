@@ -892,13 +892,14 @@ class ShiftLogging(commands.Cog):
                 valid_shift_types = [i["name"].lower() for i in shift_types] + ["all"]
                 if not (type or "").lower() in valid_shift_types:
                     msg = await ctx.reply(
+                        _cv2_skip=True,
                         embed=discord.Embed(
                             title="Incorrect Shift Type",
                             description="The shift type provided is not valid.",
                             color=BLANK_COLOR,
                         ),
-                        view=view,
-                        _cv2_skip=True
+                        view=view
+                        
                     )
 
                     timeout = await view.wait()
@@ -932,28 +933,83 @@ class ShiftLogging(commands.Cog):
                 "$limit": 100
             },
             {
-                "$group": {
-                    "_id": "$UserID",
-                    "total_seconds": {
-                        "$sum": {
-                            "$add": [
-                                {"$subtract": ["$EndEpoch", "$StartEpoch"]},
-                                "$AddedTime",
-                                {"$multiply": ["$RemovedTime", -1]},
-                            ]
-                        }
+                "$project": {
+                    "UserID": 1,
+                    "StartEpoch": 1,
+                    "worked_seconds": {
+                        "$add": [
+                            {"$subtract": ["$EndEpoch", "$StartEpoch"]},
+                            {"$ifNull": ["$AddedTime", 0]},
+                            {"$multiply": [{"$ifNull": ["$RemovedTime", 0]}, -1]},
+                        ]
                     },
                     "moderations": {
-                        "$sum": {
-                            "$cond": [
-                                {"$isArray": "$Moderations"},
-                                {"$size": "$Moderations"},
-                                0,
-                            ]
+                        "$cond": [
+                            {"$isArray": "$Moderations"},
+                            {"$size": "$Moderations"},
+                            0,
+                        ]
+                    },
+                    "break_seconds": {
+                        "$reduce": {
+                            "input": {
+                                "$cond": [
+                                    {"$isArray": "$Breaks"},
+                                    "$Breaks",
+                                    [],
+                                ]
+                            },
+                            "initialValue": 0,
+                            "in": {
+                                "$add": [
+                                    "$$value",
+                                    {
+                                        "$cond": [
+                                            {
+                                                "$and": [
+                                                    {"$gt": ["$$this.StartEpoch", 0]},
+                                                    {"$gt": ["$$this.EndEpoch", 0]},
+                                                ]
+                                            },
+                                            {
+                                                "$subtract": [
+                                                    "$$this.EndEpoch",
+                                                    "$$this.StartEpoch",
+                                                ]
+                                            },
+                                            0,
+                                        ]
+                                    },
+                                ]
+                            },
                         }
                     },
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$UserID",
+                    "total_worked_seconds": {"$sum": "$worked_seconds"},
+                    "total_break_seconds": {"$sum": "$break_seconds"},
+                    "moderations": {"$sum": "$moderations"},
                     "lowest_time": {"$min": "$StartEpoch"},
-                    "breaks": {"$push": "$Breaks"},
+                }
+            },
+            {
+                "$project": {
+                    "moderations": 1,
+                    "lowest_time": 1,
+                    "total_seconds": {
+                        "$max": [
+                            {"$subtract": ["$total_worked_seconds", "$total_break_seconds"]},
+                            0,
+                        ]
+                    },
+                }
+            },
+            {
+                "$match": {
+                    "total_seconds": {"$gt": 0}
                 }
             },
         ]
@@ -962,31 +1018,15 @@ class ShiftLogging(commands.Cog):
             pipeline[0]["$match"]["Type"] = shift_type["name"]
 
         all_staff = {}
-        cnt = 0
         async for doc in await bot.shift_management.shifts.db.aggregate(pipeline):
-            if cnt % 10 == 0:
-                await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (calculated {cnt} results)")
-            total_seconds = doc["total_seconds"]
-
-            # Calculate total break time for the shift
-            total_break_time = 0
-            for break_periods in doc["breaks"]:
-                for break_period in break_periods:
-                    break_start = break_period.get("StartEpoch", 0)
-                    break_end = break_period.get("EndEpoch", 0)
-                    if break_start and break_end:
-                        total_break_time += break_end - break_start
-
-            # Adjust total_seconds by subtracting the break time
-            adjusted_total_seconds = max(total_seconds - total_break_time, 0)
-
+            if len(all_staff) % 10 == 0:
+                await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (calculated {len(all_staff)} results)")
             all_staff[doc["_id"]] = {
                 "id": doc["_id"],
-                "total_seconds": adjusted_total_seconds,
-                "moderations": doc["moderations"],
-                "lowest_time": doc["lowest_time"],
+                "total_seconds": max(doc.get("total_seconds", 0), 0),
+                "moderations": doc.get("moderations", 0),
+                "lowest_time": doc.get("lowest_time"),
             }
-            cnt += 1
 
         # Fetch additional moderation data in bulk
         mod_ids = [
@@ -1028,45 +1068,27 @@ class ShiftLogging(commands.Cog):
 
         if not sorted_staff:
             if shift_type != 0 and shift_type is not None:
-                if not msg:
-                    return await ctx.send(
-                        embed=discord.Embed(
-                            title="No Shifts",
-                            description="No shifts have been found in this server for this Shift Type.",
-                            color=BLANK_COLOR,
-                        )
+                return await msg.edit(
+                    embed=discord.Embed(
+                        title="No Shifts",
+                        description="No shifts have been found in this server for this Shift Type.",
+                        color=BLANK_COLOR,
                     )
-                else:
-                    return await msg.edit(
-                        embed=discord.Embed(
-                            title="No Shifts",
-                            description="No shifts have been found in this server for this Shift Type.",
-                            color=BLANK_COLOR,
-                        )
-                    )
+                )
             else:
-                if not msg:
-                    return await ctx.send(
-                        embed=discord.Embed(
-                            title="No Shifts",
-                            description="No shifts have been found in this server.",
-                            color=BLANK_COLOR,
-                        )
+                return await ctx.send(
+                    embed=discord.Embed(
+                        title="No Shifts",
+                        description="No shifts have been found in this server.",
+                        color=BLANK_COLOR,
                     )
-                else:
-                    return await ctx.send(
-                        embed=discord.Embed(
-                            title="No Shifts",
-                            description="No shifts have been found in this server.",
-                            color=BLANK_COLOR,
-                        )
-                    )
+                )
 
         my_data = None
         member_list = await ctx.guild.chunk()
         members = {m.id: m for m in member_list}  # Cache guild members
         total_seconds = 0
-
+        discord.ui.TextDisplay
         for index, i in enumerate(sorted_staff):
             member = members.get(i["id"])
             if member:
@@ -1093,8 +1115,8 @@ class ShiftLogging(commands.Cog):
 
                 line = f"**{index + 1}.** {member.mention} • {time_str}\n"
                 if (
-                    len((embeds[-1].description or "")) + len(line) > 4096
-                    or len((embeds[-1].description or "").splitlines()) >= 16
+                    len((embeds[-1].description or "")) + len(line) > 3999
+                    or len((embeds[-1].description or "").splitlines()) >= 20
                 ):
                     new_embed = discord.Embed(
                         color=BLANK_COLOR, title="Shift Leaderboard"
@@ -1266,8 +1288,8 @@ class ShiftLogging(commands.Cog):
         for list_item in data:
             for item in list_item:
                 combined.append(item)
-        if buffer == "":
-            buffer += "No data to display."
+        if not buffer:
+            buffer = "No data to display."
 
         bbytes = buffer.encode("utf-8", "ignore")
 
@@ -1333,15 +1355,15 @@ class ShiftLogging(commands.Cog):
 
             if len(menu.pages) == 1:
                 try:
-                    return await msg.edit(embed=embed, view=view)
+                    return await msg.edit(content=None, embed=embed, view=view)
                 except (UnboundLocalError, AttributeError, ValueError):
-                    return await ctx.reply(embed=embed, view=view)
+                    return await ctx.reply(content=None, embed=embed, view=view)
 
             view_page = menu.get_current_view()
             try:
-                menu.message = await msg.edit(embed=embeds[0], view=view_page)
+                menu.message = await msg.edit(content = None, embed=embeds[0], view=view_page)
             except (UnboundLocalError, AttributeError, ValueError):
-                menu.message = await ctx.reply(embed=embeds[0], view=view_page)
+                menu.message = await ctx.reply(content = None, embed=embeds[0], view=view_page)
 
     @commands.guild_only()
     @duty.command(
