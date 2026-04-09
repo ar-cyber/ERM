@@ -8,7 +8,7 @@ from utils.constants import (
 from .CustomModals import CustomModal
 import gspread, datetime, asyncio
 from utils.timestamp import td_format
-class RequestGoogleSpreadsheet(discord.ui.View):
+class RequestGoogleSpreadsheet(discord.ui.Container):
     def __init__(
         self,
         bot,
@@ -18,71 +18,73 @@ class RequestGoogleSpreadsheet(discord.ui.View):
         data: list,
         template: str,
         total_seconds: int,
-        type="lb",
+        sheet_type: str = "lb",
         additional_data=None,
         label="Google Spreadsheet",
     ):
+        super().__init__()
         self.bot = bot
-        if type:
-            self.type = type
-        else:
-            self.type = "lb"
-        if additional_data:
-            self.additional_data = additional_data
-        else:
-            self.additional_data = []
-
-        super().__init__(timeout=600.0)
+        self.t = sheet_type if sheet_type else "lb"
+        self.additional_data = additional_data if additional_data else []
         self.user_id = user_id
         self.config = config
         self.scopes = scopes
         self.data = data
         self.template = template
         self.total_seconds = total_seconds
-        if label:
-            for item in self.children:
-                item.label = label
 
-    # When the confirm button is pressed, set the inner value to `True` and
-    # stop the View from listening to more input.
-    # We also send the user an ephemeral message that we're confirming their choice.
-    @discord.ui.button(label="Google Spreadsheet", style=discord.ButtonStyle.secondary)
-    async def googlespreadsheet(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        self.button = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.secondary,
+                custom_id="googlespreadsheet",
+            )
+        self.button.callback = self._handle_spreadsheet
 
+        self.action_row = discord.ui.ActionRow(
+            self.button
+        )
+        self.add_item(self.action_row)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
-            return await interaction.followup.send(
+            await interaction.response.send_message(
                 embed=discord.Embed(
                     title="Not Permitted",
                     description="You are not permitted to interact with these buttons.",
                     color=BLANK_COLOR,
-                )
+                ),
+                ephemeral=True,
             )
+            return False
+        return True
 
-        await interaction.followup.send(
+
+
+    async def _handle_spreadsheet(self, interaction: discord.Interaction):
+
+        await interaction.response.send_message(
             embed=discord.Embed(
                 title="Generating...",
                 description="We are currently generating your Google Spreadsheet.",
                 color=BLANK_COLOR,
-            )
+            ),
+            ephemeral=True
         )
 
         client = gspread.service_account_from_dict(self.config)
-
         sheet: gspread.Spreadsheet = client.copy(
             self.template, interaction.guild.name, copy_permissions=True
         )
         new_sheet = sheet.get_worksheet(0)
+
         try:
             new_sheet.update_cell(4, 2, f'=IMAGE("{interaction.guild.icon.url}")')
         except AttributeError:
             pass
 
-        if self.type == "lb":
+        if self.t == "lb":
             cell_list = new_sheet.range("D13:H999")
-        elif self.type == "ar":
+        elif self.t == "ar":
             cell_list = new_sheet.range("D13:I999")
 
         try:
@@ -96,7 +98,8 @@ class RequestGoogleSpreadsheet(discord.ui.View):
             c.value = str(n_v)
 
         new_sheet.update_cells(cell_list, "USER_ENTERED")
-        if self.type == "ar":
+
+        if self.t == "ar":
             LoAs = sheet.get_worksheet(1)
             LoAs.update_cell(4, 2, f'=IMAGE("{interaction.guild.icon.url}")')
             cell_list = LoAs.range("D13:H999")
@@ -115,19 +118,20 @@ class RequestGoogleSpreadsheet(discord.ui.View):
         view = GoogleSpreadsheetModification(
             self.bot, self.config, self.scopes, "Open Google Spreadsheet", sheet.url
         )
+        container = discord.ui.Container(
+            accent_colour=GREEN_COLOR
+        ).add_item(
+            discord.ui.TextDisplay(
+                (
+                    f"### {self.bot.emoji_controller.get_emoji('success')} Successfully generated\n"
+                    "Your Google Spreadsheet has been successfully generated."
+                )
+            )
+        ).add_item(discord.ui.Separator()).add_item(discord.ui.ActionRow(discord.ui.Button(label="Open Google Spreadsheet", url=sheet.url)))
 
         await interaction.edit_original_response(
-            embed=discord.Embed(
-                title=f"{self.bot.emoji_controller.get_emoji('success')} Successfully generated",
-                description="Your Google Spreadsheet has been successfully generated.",
-                color=GREEN_COLOR,
-            ),
-            view=view,
+            view = discord.ui.LayoutView().add_item(container)
         )
-
-        self.stop()
-
-
 
 class GoogleSpreadsheetModification(discord.ui.View):
     def __init__(self, bot, config: dict, scopes: list, label: str, url: str):

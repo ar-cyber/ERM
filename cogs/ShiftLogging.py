@@ -5,6 +5,7 @@ import typing
 
 import discord
 import pytz
+from ui.Selects import CustomDropdown
 from decouple import config
 from discord import app_commands
 from discord.ext import commands
@@ -19,12 +20,13 @@ from erm import (
     scope,
     Bot
 )
+from utils.paginators_new import CustomPage as CustomPageV2, SelectPagination as SelectPaginationV2
+from ui.GoogleSpreadsheets import RequestGoogleSpreadsheet
 from ui.Shifts import ShiftMenu, AdministratedShiftMenu
 
 from menus import (
     CustomExecutionButton,
     CustomSelectMenu,
-    RequestGoogleSpreadsheet,
 )
 from utils.autocompletes import shift_type_autocomplete, all_shift_type_autocomplete
 from utils.constants import BLANK_COLOR, GREEN_COLOR, ORANGE_COLOR, RED_COLOR
@@ -871,7 +873,7 @@ class ShiftLogging(commands.Cog):
             if len(shift_types.get("types")) > 1:
                 shift_types = shift_types.get("types")
 
-                view = CustomSelectMenu(
+                row = discord.ui.ActionRow(CustomDropdown(
                     ctx.author.id,
                     [
                         discord.SelectOption(
@@ -888,17 +890,19 @@ class ShiftLogging(commands.Cog):
                             description="Data from all shift types",
                         )
                     ],
-                )
+                ))
                 valid_shift_types = [i["name"].lower() for i in shift_types] + ["all"]
                 if not (type or "").lower() in valid_shift_types:
+                    cont = discord.ui.Container().add_item(
+                        discord.ui.TextDisplay(
+                            (
+                                "### Incorrect Shift Type\n"
+                                "The shift type provided is invalid"
+                            )
+                        )
+                    ).add_item(discord.ui.Separator()).add_item(row)
                     msg = await ctx.reply(
-                        _cv2_skip=True,
-                        embed=discord.Embed(
-                            title="Incorrect Shift Type",
-                            description="The shift type provided is not valid.",
-                            color=BLANK_COLOR,
-                        ),
-                        view=view
+                        view=(view := discord.ui.LayoutView().add_item(cont))
                         
                     )
 
@@ -909,7 +913,8 @@ class ShiftLogging(commands.Cog):
                     type_value = view.value
                 else:
                     type_value = type
-
+                if msg:
+                    await msg.delete()
                 if type_value:
                     if type_value.lower() == "all":
                         shift_type = 0
@@ -935,52 +940,118 @@ class ShiftLogging(commands.Cog):
             {
                 "$project": {
                     "UserID": 1,
-                    "StartEpoch": 1,
-                    "worked_seconds": {
-                        "$add": [
-                            {"$subtract": ["$EndEpoch", "$StartEpoch"]},
-                            {"$ifNull": ["$AddedTime", 0]},
-                            {"$multiply": [{"$ifNull": ["$RemovedTime", 0]}, -1]},
-                        ]
+                    "start_epoch": {
+                        "$convert": {
+                            "input": "$StartEpoch",
+                            "to": "double",
+                            "onError": 0,
+                            "onNull": 0,
+                        }
                     },
-                    "moderations": {
+                    "end_epoch": {
+                        "$convert": {
+                            "input": "$EndEpoch",
+                            "to": "double",
+                            "onError": 0,
+                            "onNull": 0,
+                        }
+                    },
+                    "added_time": {
+                        "$convert": {
+                            "input": "$AddedTime",
+                            "to": "double",
+                            "onError": 0,
+                            "onNull": 0,
+                        }
+                    },
+                    "removed_time": {
+                        "$convert": {
+                            "input": "$RemovedTime",
+                            "to": "double",
+                            "onError": 0,
+                            "onNull": 0,
+                        }
+                    },
+                    "moderations_array": {
                         "$cond": [
                             {"$isArray": "$Moderations"},
-                            {"$size": "$Moderations"},
-                            0,
+                            "$Moderations",
+                            [],
                         ]
                     },
-                    "break_seconds": {
-                        "$reduce": {
-                            "input": {
-                                "$cond": [
-                                    {"$isArray": "$Breaks"},
-                                    "$Breaks",
-                                    [],
+                    "breaks_array": {
+                        "$cond": [
+                            {"$isArray": "$Breaks"},
+                            "$Breaks",
+                            [],
+                        ]
+                    },
+                }
+            },
+            {
+                "$project": {
+                    "UserID": 1,
+                    "StartEpoch": "$start_epoch",
+                    "worked_seconds": {
+                        "$add": [
+                            {
+                                "$max": [
+                                    {"$subtract": ["$end_epoch", "$start_epoch"]},
+                                    0,
                                 ]
                             },
+                            "$added_time",
+                            {"$multiply": ["$removed_time", -1]},
+                        ]
+                    },
+                    "moderations": {"$size": "$moderations_array"},
+                    "break_seconds": {
+                        "$reduce": {
+                            "input": "$breaks_array",
                             "initialValue": 0,
                             "in": {
-                                "$add": [
-                                    "$$value",
-                                    {
-                                        "$cond": [
+                                "$let": {
+                                    "vars": {
+                                        "break_start": {
+                                            "$convert": {
+                                                "input": "$$this.StartEpoch",
+                                                "to": "double",
+                                                "onError": 0,
+                                                "onNull": 0,
+                                            }
+                                        },
+                                        "break_end": {
+                                            "$convert": {
+                                                "input": "$$this.EndEpoch",
+                                                "to": "double",
+                                                "onError": 0,
+                                                "onNull": 0,
+                                            }
+                                        },
+                                    },
+                                    "in": {
+                                        "$add": [
+                                            "$$value",
                                             {
-                                                "$and": [
-                                                    {"$gt": ["$$this.StartEpoch", 0]},
-                                                    {"$gt": ["$$this.EndEpoch", 0]},
+                                                "$cond": [
+                                                    {
+                                                        "$and": [
+                                                            {"$gt": ["$$break_start", 0]},
+                                                            {"$gt": ["$$break_end", "$$break_start"]},
+                                                        ]
+                                                    },
+                                                    {
+                                                        "$subtract": [
+                                                            "$$break_end",
+                                                            "$$break_start",
+                                                        ]
+                                                    },
+                                                    0,
                                                 ]
                                             },
-                                            {
-                                                "$subtract": [
-                                                    "$$this.EndEpoch",
-                                                    "$$this.StartEpoch",
-                                                ]
-                                            },
-                                            0,
                                         ]
                                     },
-                                ]
+                                }
                             },
                         }
                     },
@@ -1009,7 +1080,7 @@ class ShiftLogging(commands.Cog):
             },
             {
                 "$match": {
-                    "total_seconds": {"$gt": 0}
+                    "total_seconds": {"$gte": 1}
                 }
             },
         ]
@@ -1055,15 +1126,17 @@ class ShiftLogging(commands.Cog):
         )
 
         buffer = None
-        embeds = []
+        containers = []
 
-        embed = discord.Embed(color=BLANK_COLOR, title="Shift Leaderboard")
-        embed.set_author(
-            name=f"{ctx.guild.name}",
-            icon_url=ctx.guild.icon,
-        )
+        cont = discord.ui.Container().add_item(
+            discord.ui.TextDisplay(
+                (
+                    "### Shift Leaderboard\n"
+                )
+            )
+        ).add_item(discord.ui.Separator())
 
-        embeds.append(embed)
+        containers.append(cont)
         data = []
 
         if not sorted_staff:
@@ -1085,205 +1158,62 @@ class ShiftLogging(commands.Cog):
                 )
 
         my_data = None
-        member_list = await ctx.guild.chunk()
-        members = {m.id: m for m in member_list}  # Cache guild members
         total_seconds = 0
-        discord.ui.TextDisplay
-        for index, i in enumerate(sorted_staff):
-            member = members.get(i["id"])
+        display_index = 0
+        value = ""
+        for i in sorted_staff:
+            try:
+                member = ctx.guild.get_member(i["id"])
+                if not member:
+                    member = await ctx.guild.fetch_member(i["id"])
+                member_name = member.name
+                member_id = member.id
+            except discord.NotFound:
+                member_name, member_id = i["id"], i["id"]
+        
+            if member_id == ctx.author.id:
+                i["index"] = display_index
+                my_data = i
+            total_seconds += i["total_seconds"]
+            time_str = td_format(datetime.timedelta(seconds=i["total_seconds"]))
+
+            if buffer is None:
+                buffer = f"{member_name} • {time_str}"
+            else:
+                buffer += f"\n{member_name} • {time_str}"
+
+            member_top = ""
             if member:
-                if member.id == ctx.author.id:
-                    i["index"] = index
-                    my_data = i
-                total_seconds += i["total_seconds"]
-                time_str = td_format(datetime.timedelta(seconds=i["total_seconds"]))
+                member_top = member.top_role.name
 
-                if buffer is None:
-                    buffer = f"{member.name} • {time_str}"
-                else:
-                    buffer += f"\n{member.name} • {time_str}"
-
-                data.append(
-                    [
-                        index + 1,
-                        member.name,
-                        member.top_role.name,
-                        time_str,
-                        i["moderations"],
-                    ]
-                )
-
-                line = f"**{index + 1}.** {member.mention} • {time_str}\n"
-                if (
-                    len((embeds[-1].description or "")) + len(line) > 3999
-                    or len((embeds[-1].description or "").splitlines()) >= 20
-                ):
-                    new_embed = discord.Embed(
-                        color=BLANK_COLOR, title="Shift Leaderboard"
-                    )
-                    new_embed.set_author(
-                        name=f"{ctx.guild.name}", icon_url=ctx.guild.icon
-                    )
-                    new_embed.description = f"**Total Shifts**\n{line}"
-                    embeds.append(new_embed)
-                else:
-                    if embeds[-1].description is None:
-                        embeds[-1].description = f"**Total Shifts**\n{line}"
-                    else:
-                        embeds[-1].description += line
-
-        staff_roles = []
-
-        if configItem["staff_management"].get("role"):
-            if isinstance(configItem["staff_management"]["role"], int):
-                staff_roles.append(configItem["staff_management"]["role"])
-            elif isinstance(configItem["staff_management"]["role"], list):
-                for role in configItem["staff_management"]["role"]:
-                    staff_roles.append(role)
-
-        if configItem["staff_management"].get("management_role"):
-            if isinstance(configItem["staff_management"]["management_role"], int):
-                staff_roles.append(configItem["staff_management"]["management_role"])
-            elif isinstance(configItem["staff_management"]["management_role"], list):
-                for role in configItem["staff_management"]["management_role"]:
-                    staff_roles.append(role)
-        staff_roles = [ctx.guild.get_role(role) for role in staff_roles]
-        added_staff = []
-
-        for role in staff_roles.copy():
-            if role is None:
-                staff_roles.remove(role)
-
-        for role in staff_roles:
-            if role.members:
-                for member in role.members:
-                    if member.id not in [item["id"] for item in sorted_staff]:
-                        if member not in added_staff:
-                            index = index + 1
-
-                            if buffer is None:
-                                buffer = "%s - %s" % (
-                                    f"{member.name}",
-                                    "0 seconds",
-                                )
-                                data.append(
-                                    [
-                                        index,
-                                        f"{member.name}",
-                                        member.top_role.name,
-                                        "0 seconds",
-                                        0,
-                                    ]
-                                )
-                                added_staff.append(member)
-                            else:
-                                buffer = buffer + "\n%s - %s" % (
-                                    f"{member.name}",
-                                    "0 seconds",
-                                )
-                                data.append(
-                                    [
-                                        index,
-                                        f"{member.name}",
-                                        member.top_role.name,
-                                        "0 seconds",
-                                        0,
-                                    ]
-                                )
-                                added_staff.append(member)
-
-                            if len((embeds[-1].description or "").splitlines()) < 16:
-                                if embeds[-1].description is None:
-                                    embeds[-1].description = (
-                                        f"**Total Shifts**\n> **{index + 1}.** {member.mention} • {td_format(datetime.timedelta(seconds=0))}\n"
-                                    )
-                                else:
-                                    embeds[
-                                        -1
-                                    ].description += f"> **{index + 1}.** {member.mention} • {td_format(datetime.timedelta(seconds=0))}\n"
-
-                            else:
-                                new_embed = discord.Embed(
-                                    color=BLANK_COLOR, title="Shift Leaderboard"
-                                )
-
-                                new_embed.set_author(
-                                    name=f"{ctx.guild.name}",
-                                    icon_url=ctx.guild.icon,
-                                )
-                                new_embed.description = ""
-                                new_embed.description += f"**Total Shifts**\n> **{index + 1}.** {member.mention} - {td_format(datetime.timedelta(seconds=0))}\n"
-                                embeds.append(new_embed)
-        perm_staff = list(
-            filter(
-                lambda m: (
-                    m.guild_permissions.manage_messages
-                    or m.guild_permissions.manage_guild
-                )
-                and not m.bot,
-                member_list,
+            data.append(
+                [
+                    display_index + 1,
+                    member_name,
+                    member_top,
+                    time_str,
+                    i["moderations"],
+                ]
             )
-        )
-        for member in perm_staff:
-            if member.id not in [item["id"] for item in sorted_staff]:
-                if member not in added_staff:
-                    index = index + 1
 
-                    if buffer is None:
-                        buffer = "%s - %s" % (
-                            f"{member.name}",
-                            "0 seconds",
-                        )
-                        data.append(
-                            [
-                                index + 1,
-                                f"{member.name}",
-                                member.top_role.name,
-                                "0 seconds",
-                                0,
-                            ]
-                        )
-                        added_staff.append(member)
+            line = f"**{display_index + 1}.** <@{member_id}> • {time_str}\n"
 
-                    else:
-                        buffer = buffer + "\n%s - %s" % (
-                            f"{member.name}",
-                            "0 seconds",
-                        )
-                        data.append(
-                            [
-                                index + 1,
-                                f"{member.name}",
-                                member.top_role.name,
-                                "0 seconds",
-                                0,
-                            ]
-                        )
-                        added_staff.append(member)
-
-                    if len((embeds[-1].description or "").splitlines()) < 16:
-                        if embeds[-1].description is None:
-                            embeds[-1].description = (
-                                f"**Total Shifts**\n**{index + 1}.** {member.mention} • {td_format(datetime.timedelta(seconds=0))}\n"
-                            )
-                        else:
-                            embeds[
-                                -1
-                            ].description += f"**{index + 1}.** {member.mention} • {td_format(datetime.timedelta(seconds=0))}\n"
-
-                    else:
-                        new_embed = discord.Embed(
-                            color=BLANK_COLOR, title="Shift Leaderboard"
-                        )
-
-                        new_embed.set_author(
-                            name=f"{ctx.guild.name}",
-                            icon_url=ctx.guild.icon,
-                        )
-                        new_embed.description = ""
-                        new_embed.description += f"**Total Shifts**\n**{index + 1}.** {member.mention} • {td_format(datetime.timedelta(seconds=0))}\n"
-                        embeds.append(new_embed)
-
+            if (
+                len(value) > 3999
+                or len(value.splitlines()) >= 20
+            ):
+                containers[-1].add_item(discord.ui.TextDisplay(value))
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay("### Shift Leaderboard")
+                ).add_item(discord.ui.Separator())
+                containers.append(container)
+                value = line 
+            else:
+                value += line
+            display_index += 1
+            
+        if value:
+            containers[-1].add_item(discord.ui.TextDisplay(value))
         combined = []
         for list_item in data:
             for item in list_item:
@@ -1293,12 +1223,11 @@ class ShiftLogging(commands.Cog):
 
         bbytes = buffer.encode("utf-8", "ignore")
 
-        if len(embeds) == 1:
-            new_embeds = []
-            for i in embeds:
-                new_embeds.append(i)
+        if len(containers) == 1:
+            container = containers[0]
+            await container.add_item(discord.ui.TextDisplay(value))
             if await management_predicate(ctx):
-                view = RequestGoogleSpreadsheet(
+                row = RequestGoogleSpreadsheet(
                     self.bot,
                     ctx.author.id,
                     credentials_dict,
@@ -1307,16 +1236,35 @@ class ShiftLogging(commands.Cog):
                     config("DUTY_LEADERBOARD_ID"),
                     total_seconds,
                 )
-            else:
-                view = None
-            await ctx.reply(
-                embeds=new_embeds,
-                file=discord.File(fp=BytesIO(bbytes), filename="shift_leaderboard.txt"),
+            async def response_func(
+                interaction: discord.Interaction, button: discord.Button
+            ):
+                file = discord.File(
+                    fp=BytesIO(bbytes), filename="shift_leaderboard.txt"
+                )
+                await interaction.response.send_message(file=file, ephemeral=True)
+            view = discord.ui.LayoutView()
+            view.add_item(container)
+            if row:
+                row.action_row.add_item(
+                    CustomExecutionButton(
+                        ctx.author.id,
+                        "Download Shift Leaderboard",
+                        discord.ButtonStyle.gray,
+                        emoji=None,
+                        func=response_func,
+                    )
+                )
+                view.add_item(row)
+
+            await msg.edit(
+                content=None,
+                embed=None,
                 view=view,
             )
         else:
             if await management_predicate(ctx):
-                view = RequestGoogleSpreadsheet(
+                row = RequestGoogleSpreadsheet(
                     self.bot,
                     ctx.author.id,
                     credentials_dict,
@@ -1326,7 +1274,7 @@ class ShiftLogging(commands.Cog):
                     total_seconds,
                 )
             else:
-                view = None
+                row = None
 
             async def response_func(
                 interaction: discord.Interaction, button: discord.Button
@@ -1336,8 +1284,8 @@ class ShiftLogging(commands.Cog):
                 )
                 await interaction.response.send_message(file=file, ephemeral=True)
 
-            if view:
-                view.add_item(
+            if row:
+                row.action_row.add_item(
                     CustomExecutionButton(
                         ctx.author.id,
                         "Download Shift Leaderboard",
@@ -1346,24 +1294,18 @@ class ShiftLogging(commands.Cog):
                         func=response_func,
                     )
                 )
-
+            view = discord.ui.LayoutView().add_item(row)
             pages = [
-                CustomPage(embeds=[embed], view=view, identifier=str(index + 1))
-                for index, embed in enumerate(embeds)
+                CustomPageV2(containers=[container], view=view, identifier=str(index + 1))
+                for index, container in enumerate(containers)
             ]
-            menu = SelectPagination(self.bot, ctx.author.id, pages)
-
-            if len(menu.pages) == 1:
-                try:
-                    return await msg.edit(content=None, embed=embed, view=view)
-                except (UnboundLocalError, AttributeError, ValueError):
-                    return await ctx.reply(content=None, embed=embed, view=view)
+            menu = SelectPaginationV2(self.bot, ctx.author.id, pages)
 
             view_page = menu.get_current_view()
             try:
-                menu.message = await msg.edit(content = None, embed=embeds[0], view=view_page)
+                menu.message = await msg.edit(content = None, embed=None, view=view_page)
             except (UnboundLocalError, AttributeError, ValueError):
-                menu.message = await ctx.reply(content = None, embed=embeds[0], view=view_page)
+                menu.message = await ctx.reply(content = None, embed=None, view=view_page)
 
     @commands.guild_only()
     @duty.command(
