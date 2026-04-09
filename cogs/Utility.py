@@ -25,7 +25,7 @@ class Utility(commands.Cog):
 
     @commands.hybrid_group(
         name="import",
-        description="Internal Use Command - import data from the recent outage.",
+        description="Import data from outages that affected the database.",
         extras={"category": "Utility"},
     )
     @is_staff()
@@ -458,6 +458,18 @@ class Utility(commands.Cog):
     @is_management()
     @require_settings()
     async def api_generate(self, ctx: commands.Context):
+        return await (
+            ctx.reply
+            if not ctx.interaction
+            else ctx.interaction.response.send_message
+        ) (
+            embed=discord.Embed(
+                title = "Disabled",
+                description="The `api generate` command has been disabled until further notice due to backend issues."
+            ),
+            ephemeral=True
+        )
+        """
         view = APIKeyConfirmation(ctx.author.id)
         msg = await ctx.send(
             embed=discord.Embed(
@@ -533,6 +545,7 @@ class Utility(commands.Cog):
                     ),
                     ephemeral=isinstance(ctx.interaction, discord.Interaction),
                 )
+    """
     @app_commands.command(name="help", description="Get help with ERM!")
     @app_commands.describe(command="The command, subcommand, or cog to get help with.")
     async def _help(self, interaction: discord.Interaction, command: str = None):
@@ -552,6 +565,6 @@ class Utility(commands.Cog):
                 await help_command.send_group_help(cmd)
             else:
                 await help_command.send_command_help(cmd)
-
+        
 async def setup(bot):
     await bot.add_cog(Utility(bot))
