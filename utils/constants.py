@@ -170,3 +170,9 @@ base_infraction_type = {
     "remove_ingame_perms": False,
     "end_shift": False
 }
+
+ShiftTypeMappingToColor = {
+    "on": GREEN_COLOR,
+    "break": discord.Color.yellow(),
+    "end": RED_COLOR
+}

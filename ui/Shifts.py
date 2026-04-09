@@ -5,10 +5,257 @@ from discord.ext import commands
 from datamodels.ShiftManagement import ShiftItem
 from utils.utils import generalised_interaction_check_failure, get_elapsed_time, time_converter
 from utils.timestamp import td_format
-from utils.constants import BLANK_COLOR, RED_COLOR, GREEN_COLOR, ORANGE_COLOR
+from utils.constants import BLANK_COLOR, RED_COLOR, GREEN_COLOR, ORANGE_COLOR, ShiftTypeMappingToColor
 from discord import Interaction
 from bson import ObjectId
 from .CustomModals import CustomModal
+
+class ShiftMenuV2(discord.ui.Container):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        section: discord.ui.Section,
+        starting_state: typing.Literal["on", "break", "off"],
+        user_id: int,
+        shift_type: str,
+        starting_document: dict | None = None,
+        starting_container: ShiftItem | None = None,            
+    ):
+        super().__init__(accent_color=ShiftTypeMappingToColor[starting_state])
+        self.user_id = user_id
+        self.state = starting_state
+        self.bot = bot
+        self.shift_type = shift_type
+        self.shift = starting_document
+        self.contained_document = starting_container
+        self.message = None
+
+        self.on_duty_toggle_button = discord.ui.Button(
+            style = discord.ButtonStyle.danger if starting_state != "on" else discord.ButtonStyle.green,
+            label = "Start Shift" if starting_state == "off" else "End Shift"
+        )
+        self.on_duty_toggle_button.callback = self._on_shift_action
+
+        self.state_button = discord.ui.Button(
+            label = self._get_label(starting_state),
+            disabled=True
+        )
+
+        self.break_button = discord.ui.Button(
+            label = "Start Break" if starting_state == "break" else "End Break",
+            disabled = True if starting_state == "off" else False,
+        )
+
+        self.set_buttons()
+
+        self.actionrow = discord.ui.ActionRow(self.on_duty_toggle_button, self.state_button, self.break_button)
+        self.add_item(self.actionrow)
+    async def _check_break(self, contained_document: ShiftItem):  
+        for break_item in contained_document.breaks:
+            logging.info(
+                f"Checking break: {break_item}"
+            )  # Debugging log to print each break
+            if (
+                break_item.end_epoch == 0
+            ):  # Assuming end_epoch is 0 if the break hasn't ended yet
+                return break_item
+                
+        return False
+    def set_buttons(self):
+        match self.state:
+            case "on":
+                self.on_duty_toggle_button.label = "End Shift"
+                self.on_duty_toggle_button.style = discord.ButtonStyle.red
+                self.break_button.label = "Start Break"
+                self.break_button.disabled = False
+            case "break":
+                self.break_button.label = "Resume Shift"
+                self.break_button.style = discord.ButtonStyle.green
+            case "end":
+                self.break_button.label = "Start Break"
+                self.break_button.style = discord.ButtonStyle.secondary
+                self.break_button.disabled = True
+                self.on_duty_toggle_button.label = "Start Shift"
+                self.on_duty_toggle_button.style = discord.ButtonStyle.green
+        self.state_button.label = self._get_label(self.state)     
+
+    async def cycle_ui(self, option, message: discord.Message):
+        shift = self.shift
+        contained_document = self.contained_document
+        if not contained_document and not shift:
+            return
+        uis = {
+            "on": discord.ui.Section(
+                discord.ui.TextDisplay(f"-# {message.guild.name}\n{self.bot.emoji_controller.get_emoji('ShiftStarted')} **Shift Started**"),
+                accessory=discord.ui.Thumbnail(media=message.guild.icon.with_format("png").url)
+            ).add_item(discord.ui.TextDisplay((
+                    "### Current Shift\n"
+                    f"> **Started:** <t:{int(contained_document.start_epoch)}:R>\n"
+                    f"> **Breaks:** {len(self.shift['Breaks'])}\n"
+                    f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
+                )),
+            ),
+            "off": discord.Embed(
+                title=f"{self.bot.emoji_controller.get_emoji('ShiftEnded')} **Off-Duty**",
+                color=RED_COLOR,
+            )
+            .set_author(
+                name=message.guild.name,
+                icon_url=message.guild.icon.url if message.guild.icon else "",
+            )
+            .add_field(
+                name="Shift Overview",
+                value=(
+                    f"> **Started:** <t:{int(contained_document.start_epoch)}:R>\n"
+                    f"> **Breaks:** {len(self.shift['Breaks'])}\n"
+                    f"> **Ended:** <t:{int(contained_document.end_epoch or datetime.datetime.now(tz=pytz.UTC).timestamp())}:R>"
+                ),
+                inline=False,
+            ),
+        }
+        if option == "break":
+            current_break = None
+            for break_item in contained_document.breaks:
+                logging.info(
+                    f"Checking break: {break_item}"
+                )  # Debugging log to print each break
+                if (
+                    break_item.end_epoch == 0
+                ):  # Assuming end_epoch is 0 if the break hasn't ended yet
+                    current_break = break_item
+                    break
+
+            if current_break:
+                break_start_time = (
+                    f"> **Break Started:** <t:{int(current_break.start_epoch)}:R>\n"
+                )
+            else:
+                break_start_time = "> **Break Started:** No ongoing break\n"
+
+            selected_ui = (
+                discord.Embed(
+                    title=f"{self.bot.emoji_controller.get_emoji('ShiftBreak')} **On-Break**",
+                    color=ORANGE_COLOR,
+                )
+                .set_author(
+                    name=message.guild.name,
+                    icon_url=message.guild.icon.url if message.guild.icon else "",
+                )
+                .add_field(
+                    name="Current Shift",
+                    value=(
+                        f"> **Shift Started:** <t:{int(contained_document.start_epoch)}:R>\n"
+                        f"{break_start_time}"
+                        f"> **Breaks:** {len(self.shift['Breaks'])}\n"
+                        f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
+                    ),
+                    inline=False,
+                )
+            )
+        else:
+            selected_ui = uis[option]
+
+        if not selected_ui:
+            return
+        self.set_buttons()
+        await message.edit(embed=selected_ui, view=self)
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            # Refresh current data to ensure state has not changed
+            current_shift = await self.bot.shift_management.get_current_shift(
+                interaction.user, interaction.guild.id
+            )
+            self.shift = current_shift
+            if self.shift:
+                self.contained_document = await self.bot.shift_management.fetch_shift(
+                    self.shift["_id"]
+                )
+            else:
+                self.contained_document = None
+            if self.contained_document:
+                if self.contained_document.breaks:
+                    if self.contained_document.breaks[-1].end_epoch == 0:
+                        self.state = "break"
+                    else:
+                        self.state = "on"
+                else:
+                    self.state = "on"
+            else:
+                self.state = "off"
+            return True
+        else:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Not Permitted",
+                    description="You are not permitted to interact with these buttons.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
+            return False
+    
+    def _get_label(self, state: str):
+        match state:
+            case "on":
+                return "On-Duty"
+            case "break":
+                return "On Break"
+            case "end":
+                return "Off-Duty"
+            case _:
+                return "Unknown"
+
+    async def _on_shift_action(self, interaction: Interaction):
+        await interaction.response.defer(thinking=False)
+        if self.state == "break":
+            self.shift["Breaks"][-1]["EndEpoch"] = datetime.datetime.now(
+                tz=pytz.UTC
+            ).timestamp()
+            self.shift["_id"] = self.contained_document.id
+            await self.bot.shift_management.shifts.update_by_id(self.shift)
+            await asyncio.sleep(1)
+            self.contained_document = await self.bot.shift_management.fetch_shift(
+                self.contained_document.id
+            )
+            await self.cycle_ui("on", interaction.message)
+            self.bot.dispatch("break_end", self.contained_document.id)
+            return
+
+        settings = await self.bot.settings.find_by_id(interaction.guild.id)
+        access = True
+        for item in settings.get("shift_management", {}).get("shift_types", []):
+            if isinstance(item, dict):
+                if item["name"] == self.shift_type:
+                    access_roles = item.get("access_roles") or []
+                    if len(access_roles) > 0:
+                        access = False
+                        for role in access_roles:
+                            if role in [i.id for i in interaction.user.roles]:
+                                access = True
+                                break
+        if not access:
+            return await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="No Access",
+                    description="You are not permitted to go on-duty as this Shift Type.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
+
+        if self.state == "on" or self.state == "break":
+            return await self.cycle_ui(self.state, interaction.message)
+
+        object_id = await self.bot.shift_management.add_shift_by_user(
+            interaction.user, self.shift_type, [], interaction.guild.id
+        )
+        self.contained_document: ShiftItem = (
+            await self.bot.shift_management.fetch_shift(object_id)
+        )
+        self.shift = await self.bot.shift_management.shifts.find_by_id(object_id)
+        await self.cycle_ui("on", interaction.message)
+        self.bot.dispatch("shift_start", self.shift["_id"])
+        return
 
 class ShiftMenu(discord.ui.View):
     def __init__(
