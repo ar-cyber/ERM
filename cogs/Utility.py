@@ -466,7 +466,8 @@ class Utility(commands.Cog):
             embed=discord.Embed(
                 title = "Disabled",
                 description="The `api generate` command has been disabled until further notice due to backend issues."
-            )
+            ),
+            ephemeral=True
         )
         """
         view = APIKeyConfirmation(ctx.author.id)
