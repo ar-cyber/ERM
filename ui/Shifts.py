@@ -29,7 +29,7 @@ class ShiftMenuV2(discord.ui.Container):
         self.shift = starting_document
         self.contained_document = starting_container
         self.message = None
-
+        self.section = section
         self.on_duty_toggle_button = discord.ui.Button(
             style = discord.ButtonStyle.danger if starting_state != "on" else discord.ButtonStyle.green,
             label = "Start Shift" if starting_state == "off" else "End Shift"
@@ -38,16 +38,18 @@ class ShiftMenuV2(discord.ui.Container):
 
         self.state_button = discord.ui.Button(
             label = self._get_label(starting_state),
-            disabled=True
+            disabled=True,
+            style = discord.ButtonStyle.blurple
         )
 
         self.break_button = discord.ui.Button(
             label = "Start Break" if starting_state == "break" else "End Break",
             disabled = True if starting_state == "off" else False,
         )
+        self.break_button.callback = self._on_break_action
 
         self.set_buttons()
-
+        self.add_item(self.section).add_item(discord.ui.Separator())
         self.actionrow = discord.ui.ActionRow(self.on_duty_toggle_button, self.state_button, self.break_button)
         self.add_item(self.actionrow)
     async def _check_break(self, contained_document: ShiftItem):  
@@ -66,52 +68,51 @@ class ShiftMenuV2(discord.ui.Container):
             case "on":
                 self.on_duty_toggle_button.label = "End Shift"
                 self.on_duty_toggle_button.style = discord.ButtonStyle.red
+                self.state_button.style = discord.ButtonStyle.green
                 self.break_button.label = "Start Break"
                 self.break_button.disabled = False
             case "break":
                 self.break_button.label = "Resume Shift"
                 self.break_button.style = discord.ButtonStyle.green
-            case "end":
+                self.state_button.style = discord.ButtonStyle.blurple
+            case "off":
                 self.break_button.label = "Start Break"
-                self.break_button.style = discord.ButtonStyle.secondary
+                self.break_button.style = discord.ButtonStyle.blurple
                 self.break_button.disabled = True
+                self.state_button.style = discord.ButtonStyle.red
                 self.on_duty_toggle_button.label = "Start Shift"
                 self.on_duty_toggle_button.style = discord.ButtonStyle.green
         self.state_button.label = self._get_label(self.state)     
 
-    async def cycle_ui(self, option, message: discord.Message):
+    async def cycle_ui(self, option, message: discord.Interaction):
         shift = self.shift
+        print(option)
         contained_document = self.contained_document
         if not contained_document and not shift:
             return
         uis = {
             "on": discord.ui.Section(
-                discord.ui.TextDisplay(f"-# {message.guild.name}\n{self.bot.emoji_controller.get_emoji('ShiftStarted')} **Shift Started**"),
                 accessory=discord.ui.Thumbnail(media=message.guild.icon.with_format("png").url)
-            ).add_item(discord.ui.TextDisplay((
-                    "### Current Shift\n"
+            ).add_item(discord.ui.TextDisplay(f"-# {message.guild.name}\n### {self.bot.emoji_controller.get_emoji('ShiftStarted')} **On-Duty**\n")).add_item(discord.ui.TextDisplay((
+                    "**Current Shift**\n"
                     f"> **Started:** <t:{int(contained_document.start_epoch)}:R>\n"
                     f"> **Breaks:** {len(self.shift['Breaks'])}\n"
                     f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
                 )),
             ),
-            "off": discord.Embed(
-                title=f"{self.bot.emoji_controller.get_emoji('ShiftEnded')} **Off-Duty**",
-                color=RED_COLOR,
+            "off": discord.ui.Section(
+                accessory=discord.ui.Thumbnail(media=message.guild.icon.with_format("png").url)
             )
-            .set_author(
-                name=message.guild.name,
-                icon_url=message.guild.icon.url if message.guild.icon else "",
+            .add_item(
+                discord.ui.TextDisplay(f"-# {message.guild.name}\n### {self.bot.emoji_controller.get_emoji('ShiftEnded')} **Off-Duty**\n")
             )
-            .add_field(
-                name="Shift Overview",
-                value=(
+            .add_item(discord.ui.TextDisplay((
+                    "**Shift Overview**\n"
                     f"> **Started:** <t:{int(contained_document.start_epoch)}:R>\n"
                     f"> **Breaks:** {len(self.shift['Breaks'])}\n"
                     f"> **Ended:** <t:{int(contained_document.end_epoch or datetime.datetime.now(tz=pytz.UTC).timestamp())}:R>"
-                ),
-                inline=False,
-            ),
+                )
+            )),
         }
         if option == "break":
             current_break = None
@@ -133,23 +134,19 @@ class ShiftMenuV2(discord.ui.Container):
                 break_start_time = "> **Break Started:** No ongoing break\n"
 
             selected_ui = (
-                discord.Embed(
-                    title=f"{self.bot.emoji_controller.get_emoji('ShiftBreak')} **On-Break**",
-                    color=ORANGE_COLOR,
+                discord.ui.Section(
+                    accessory=discord.ui.Thumbnail(message.guild.icon.with_format("png").url)
                 )
-                .set_author(
-                    name=message.guild.name,
-                    icon_url=message.guild.icon.url if message.guild.icon else "",
+                .add_item(
+                    discord.ui.TextDisplay(f"-# {message.guild.name}\n### {self.bot.emoji_controller.get_emoji('ShiftBreak')} **On-Break**\n")
                 )
-                .add_field(
-                    name="Current Shift",
-                    value=(
+                .add_item(discord.ui.TextDisplay(
+                        "**Current Shift**\n"
                         f"> **Shift Started:** <t:{int(contained_document.start_epoch)}:R>\n"
                         f"{break_start_time}"
                         f"> **Breaks:** {len(self.shift['Breaks'])}\n"
                         f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
-                    ),
-                    inline=False,
+                    )
                 )
             )
         else:
@@ -157,8 +154,22 @@ class ShiftMenuV2(discord.ui.Container):
 
         if not selected_ui:
             return
+        match option:
+            case "on":
+                self.accent_color = discord.Colour.green()
+            case "break":
+                self.accent_color = discord.Colour.yellow()
+            case "off":
+                self.accent_color = discord.Colour.red()
+            case _:
+                self.accent_color = discord.Colour(0x000000)
+        self._children.clear()
+        self._children.append(selected_ui)
+        self._children.append(discord.ui.Separator())
+        self._children.append(self.actionrow)
+        self.state = option
         self.set_buttons()
-        await message.edit(embed=selected_ui, view=self)
+        await message.edit_original_response(embed=None, view=self.view)
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.user_id:
             # Refresh current data to ensure state has not changed
@@ -195,31 +206,37 @@ class ShiftMenuV2(discord.ui.Container):
             return False
     
     def _get_label(self, state: str):
+        prefix = "Currently: "
         match state:
             case "on":
-                return "On-Duty"
+                return prefix + "On-Duty"
             case "break":
-                return "On Break"
-            case "end":
-                return "Off-Duty"
+                return prefix + "On Break"
+            case "off":
+                return prefix + "Off-Duty"
             case _:
                 return "Unknown"
 
     async def _on_shift_action(self, interaction: Interaction):
         await interaction.response.defer(thinking=False)
-        if self.state == "break":
-            self.shift["Breaks"][-1]["EndEpoch"] = datetime.datetime.now(
-                tz=pytz.UTC
-            ).timestamp()
-            self.shift["_id"] = self.contained_document.id
-            await self.bot.shift_management.shifts.update_by_id(self.shift)
-            await asyncio.sleep(1)
+
+        if self.state == "on":
+            await self.bot.shift_management.end_shift(
+                self.contained_document.id, self.contained_document.guild
+            )
             self.contained_document = await self.bot.shift_management.fetch_shift(
                 self.contained_document.id
             )
-            await self.cycle_ui("on", interaction.message)
-            self.bot.dispatch("break_end", self.contained_document.id)
+            self.shift = await self.bot.shift_management.shifts.find_by_id(
+                self.contained_document.id
+            )
+            await self.cycle_ui("off", interaction)
+            try:
+                self.bot.dispatch("shift_end", self.contained_document.id)
+            except Exception as e:
+                logging.info(f"Error dispatching shift_end: {e}")
             return
+
 
         settings = await self.bot.settings.find_by_id(interaction.guild.id)
         access = True
@@ -243,8 +260,28 @@ class ShiftMenuV2(discord.ui.Container):
                 ephemeral=True,
             )
 
-        if self.state == "on" or self.state == "break":
-            return await self.cycle_ui(self.state, interaction.message)
+        if self.state == "break":
+            self.shift["Breaks"][-1]["EndEpoch"] = datetime.datetime.now(
+                tz=pytz.UTC
+            ).timestamp()
+            self.shift["_id"] = self.contained_document.id
+            await self.bot.shift_management.shifts.update_by_id(self.shift)
+            await asyncio.sleep(1)
+            await self.bot.shift_management.end_shift(
+                self.contained_document.id, self.contained_document.guild
+            )
+            self.contained_document = await self.bot.shift_management.fetch_shift(
+                self.contained_document.id
+            )
+            self.shift = await self.bot.shift_management.shifts.find_by_id(
+                self.contained_document.id
+            )
+            await self.cycle_ui("off", interaction)
+            try:
+                self.bot.dispatch("shift_end", self.contained_document.id)
+            except Exception as e:
+                logging.info(f"Error dispatching shift_end: {e}")
+            return
 
         object_id = await self.bot.shift_management.add_shift_by_user(
             interaction.user, self.shift_type, [], interaction.guild.id
@@ -253,8 +290,39 @@ class ShiftMenuV2(discord.ui.Container):
             await self.bot.shift_management.fetch_shift(object_id)
         )
         self.shift = await self.bot.shift_management.shifts.find_by_id(object_id)
-        await self.cycle_ui("on", interaction.message)
+
+        await self.cycle_ui("on", interaction)
         self.bot.dispatch("shift_start", self.shift["_id"])
+        return
+    async def _on_break_action(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=False)
+        if self.state == "break":
+            self.shift["Breaks"][-1]["EndEpoch"] = datetime.datetime.now(
+                tz=pytz.UTC
+            ).timestamp()
+            self.shift["_id"] = self.contained_document.id
+            await self.bot.shift_management.shifts.update_by_id(self.shift)
+            await asyncio.sleep(1)
+            self.contained_document = await self.bot.shift_management.fetch_shift(
+                self.contained_document.id
+            )
+            await self.cycle_ui("on", interaction)
+            self.bot.dispatch("break_end", self.contained_document.id)
+            return
+        self.shift["Breaks"].append(
+            {
+                "StartEpoch": datetime.datetime.now(tz=pytz.UTC).timestamp(),
+                "EndEpoch": 0,
+            }
+        )
+        self.shift["_id"] = self.contained_document.id
+        await self.bot.shift_management.shifts.update_by_id(self.shift)
+        self.contained_document = await self.bot.shift_management.fetch_shift(
+            self.contained_document.id
+        )
+        await self.cycle_ui("break", interaction)
+        self.bot.dispatch("break_start", self.contained_document.id)
+        
         return
 
 class ShiftMenu(discord.ui.View):

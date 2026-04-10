@@ -174,5 +174,5 @@ base_infraction_type = {
 ShiftTypeMappingToColor = {
     "on": GREEN_COLOR,
     "break": discord.Color.yellow(),
-    "end": RED_COLOR
+    "off": RED_COLOR
 }

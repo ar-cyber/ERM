@@ -22,7 +22,7 @@ from erm import (
 )
 from utils.paginators_new import CustomPage as CustomPageV2, SelectPagination as SelectPaginationV2
 from ui.GoogleSpreadsheets import RequestGoogleSpreadsheet
-from ui.Shifts import ShiftMenu, AdministratedShiftMenu
+from ui.Shifts import ShiftMenu, AdministratedShiftMenu, ShiftMenuV2
 
 from menus import (
     CustomExecutionButton,
@@ -378,6 +378,239 @@ class ShiftLogging(commands.Cog):
         else:
             await msg.edit(embed=embed, view=view)
             view.message = msg
+
+    @commands.guild_only()
+    @duty.command(
+        name = "v2",
+        description = "Public beta! Test out the new shift management view before it gets rolled out to prod",
+        extras = {"category": "Shift Management"}
+    )
+    @is_staff()
+    @require_settings()
+    @app_commands.autocomplete(type=shift_type_autocomplete)
+    async def _duty_v2(self, ctx, *, type: str = "Default"):
+        settings = await self.bot.settings.find_by_id(ctx.guild.id)
+        if not settings.get("shift_management", {}).get("enabled", False):
+            return await ctx.send(
+                embed=discord.Embed(
+                    title="Not Enabled",
+                    description="Shift Logging is not enabled on this server.",
+                    color=BLANK_COLOR,
+                )
+            )
+
+        shift_types = settings.get("shift_types", {}).get("types", [])
+        msg = None
+        shift_type_item = None
+        if shift_types:
+            if type.lower() not in [t["name"].lower() for t in shift_types]:
+                msg = await ctx.send(
+                    embed=discord.Embed(
+                        title="Incorrect Shift Type",
+                        description="The shift type provided is not valid.",
+                        color=BLANK_COLOR,
+                    ),
+                    view=(
+                        view := CustomSelectMenu(
+                            ctx.author.id,
+                            [
+                                discord.SelectOption(
+                                    label=i["name"],
+                                    value=i["name"],
+                                    description=i["name"],
+                                )
+                                for i in shift_types
+                            ],
+                        )
+                    ),
+                    _cv2_skip=True
+                )
+                timeout = await view.wait()
+                if timeout:
+                    return
+
+                if view.value:
+                    type = view.value
+
+            for item in shift_types:
+                if item["name"].lower() == type.lower():
+                    shift_type_item = item
+
+            if shift_type_item:
+                if shift_type_item.get("access_roles") is not None:
+                    item = shift_type_item
+                    access_roles = item.get("access_roles") or []
+                    if len(access_roles) > 0:
+                        access = False
+                        for role in access_roles:
+                            if role in [i.id for i in ctx.author.roles]:
+                                access = True
+                                break
+                        if access is False:
+                            if not msg:
+                                return await ctx.send(
+                                    embed=discord.Embed(
+                                        title="Access Denied",
+                                        description="You do not have access to this shift type.",
+                                        color=BLANK_COLOR,
+                                    )
+                                )
+                            else:
+                                return await msg.edit(
+                                    embed=discord.Embed(
+                                        title="Access Denied",
+                                        description="You do not have access to this shift type.",
+                                        color=BLANK_COLOR,
+                                    ),
+                                    view=None,
+                                )
+
+        if self.bot.shift_management_disabled is True:
+            return await new_failure_embed(
+                ctx,
+                "Maintenance",
+                "This command is currently disabled as ERM is currently undergoing maintenance updates. This command will be turned off briefly to ensure that no data is lost during the maintenance.",
+            )
+        try:
+            maximum_staff = settings.get("shift_management", {}).get("maximum_staff", 0)
+            # print(f"Maximum Staff: {maximum_staff}")
+        except AttributeError:
+            # print("Attribute Error")
+            return
+
+        try:
+            on_duty_staff = await self.bot.shift_management.shifts.db.count_documents(
+                {"Guild": ctx.guild.id, "EndEpoch": 0}
+            )
+            # print(f"Staff on Duty: {on_duty_staff}")
+        except AttributeError:
+            # print("Attribute Error")
+            return
+        # if author is on duty then bypass the limit
+        shift_zero = [
+            i
+            async for i in self.bot.shift_management.shifts.db.find(
+                {"Guild": ctx.guild.id, "EndEpoch": 0, "UserID": ctx.author.id}
+            )
+        ]
+
+        if len(shift_zero) == 0:
+            if (on_duty_staff) >= (maximum_staff or 0) and (maximum_staff or 0) != 0:
+                return await ctx.send(
+                    embed=discord.Embed(
+                        title="Staff Limit Reached",
+                        description="The maximum amount of staff members on duty has been reached.",
+                        color=BLANK_COLOR,
+                    )
+                )
+
+        shift = await self.bot.shift_management.get_current_shift(
+            ctx.author, ctx.guild.id
+        )
+        # view = ModificationSelectMenu(ctx.author.id)
+        previous_shifts = [
+            i
+            async for i in self.bot.shift_management.shifts.db.find(
+                {"UserID": ctx.author.id, "Guild": ctx.guild.id, "EndEpoch": {"$ne": 0}}
+            )
+        ]
+        sect = discord.ui.Section(accessory=discord.ui.Thumbnail(media=ctx.guild.icon.with_format("png").url))
+        title = ""
+        # embed = discord.Embed(color=BLANK_COLOR)
+
+        sect.add_item(discord.ui.TextDisplay((
+                "**Current Statistics**\n"
+                f"> **Total Shift Duration:** {td_format(datetime.timedelta(seconds=sum([get_elapsed_time(item) for item in previous_shifts])))}\n"
+                f"> **Total Shifts:** {len(previous_shifts)}\n"
+                f"> **Average Shift Duration:** {td_format(datetime.timedelta(seconds=(sum([get_elapsed_time(item) for item in previous_shifts]).__truediv__(len(previous_shifts) or 1))))}\n"
+            ))
+        )
+
+
+        if shift:
+            if (shift.get("Breaks", [{}]) or [{}])[-1].get("EndEpoch", 1) == 0:
+                status = "break"
+            else:
+                status = "on"
+        else:
+            status = "off"
+
+        contained_document = None
+        if status == "on":
+            contained_document: ShiftItem = await self.bot.shift_management.fetch_shift(
+                shift["_id"]
+            )
+            sect.add_item(discord.ui.TextDisplay(
+                (
+                    "**Current Shift**\n"
+                    f"> **Started:** <t:{int(contained_document.start_epoch)}:R>\n"
+                    f"> **Breaks:** {len(contained_document.breaks)}\n"
+                    f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
+                )
+            ))
+            title = (
+                f"{self.bot.emoji_controller.get_emoji('ShiftStarted')} **On-Duty**"
+            )
+        elif status == "break":
+            print("On Break status called")
+            contained_document: ShiftItem = await self.bot.shift_management.fetch_shift(
+                shift["_id"]
+            )
+
+            logging.info(f"All Breaks: {contained_document.breaks}")
+
+            current_break = None
+            for break_item in contained_document.breaks:
+                logging.info(
+                    f"Checking break: {break_item}"
+                )  # Debugging log to print each break
+                if (
+                    break_item.end_epoch == 0
+                ):  # Assuming end_epoch is 0 if the break hasn't ended yet
+                    current_break = break_item
+                    break
+
+            if current_break:
+                break_start_time = (
+                    f"> **Break Started:** <t:{int(current_break.start_epoch)}:R>\n"
+                )
+            else:
+                break_start_time = "> **Break Started:** No ongoing break\n"
+            
+            sect.add_item(discord.ui.TextDisplay(
+                (
+                    "**Current Shift**\n"
+                    f"> **Shift Started:** <t:{int(contained_document.start_epoch)}:R>\n"
+                    f"{break_start_time}"
+                    f"> **Breaks:** {len(contained_document.breaks)}\n"
+                    f"> **Elapsed Time:** {td_format(datetime.timedelta(seconds=get_elapsed_time(shift)))}"
+                )
+            ))
+            title = (
+                f"{self.bot.emoji_controller.get_emoji('ShiftBreak')} **On-Break**"
+            )
+        else:
+            title = (
+                f"{self.bot.emoji_controller.get_emoji('ShiftEnded')} **Off-Duty**"
+            )
+        sect._children.insert(0, discord.ui.TextDisplay(f"-# {ctx.guild.name}\n### {title}\n"))
+        cont = ShiftMenuV2(
+            self.bot,
+            sect,
+            status,
+            ctx.author.id,
+            shift_type_item["name"] if shift_type_item else type,
+            starting_document=shift,
+            starting_container=contained_document,
+        )
+
+        view = discord.ui.LayoutView().add_item(cont)
+
+        if not msg:
+            cont.message = await ctx.send(view=view)
+        else:
+            await msg.edit(view=view)
+            cont.message = msg
 
     @commands.guild_only()
     @duty.command(
