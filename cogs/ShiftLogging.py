@@ -1165,11 +1165,11 @@ class ShiftLogging(commands.Cog):
                 else:
                     return
         msg = await ctx.reply("<a:Loading:1044067865453670441> **Loading...**")
+
+        all_staff = {}
         pipeline = [
             {"$match": {"Guild": ctx.guild.id, "EndEpoch": {"$ne": 0}}},
-            {
-                "$limit": 100
-            },
+
             {
                 "$project": {
                     "UserID": 1,
@@ -1311,20 +1311,15 @@ class ShiftLogging(commands.Cog):
                     },
                 }
             },
-            {
-                "$match": {
-                    "total_seconds": {"$gte": 1}
-                }
-            },
-        ]
 
+        ]
         if shift_type != 0 and shift_type is not None:
             pipeline[0]["$match"]["Type"] = shift_type["name"]
-
-        all_staff = {}
-        async for doc in await bot.shift_management.shifts.db.aggregate(pipeline):
-            if len(all_staff) % 10 == 0:
+        docs =  [doc async for doc in await self.bot.shift_management.shifts.db.aggregate(pipeline)]
+        for doc in docs:
+            if len(all_staff) % 150 == 0:
                 await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (calculated {len(all_staff)} results)")
+
             all_staff[doc["_id"]] = {
                 "id": doc["_id"],
                 "total_seconds": max(doc.get("total_seconds", 0), 0),
@@ -1337,6 +1332,7 @@ class ShiftLogging(commands.Cog):
             staff["id"] for staff in all_staff.values() if staff["moderations"] == 0
         ]
         if mod_ids:
+            # This one isn't large so I won't be redising it
             mod_pipeline = [
                 {"$match": {"ModeratorID": {"$in": mod_ids}, "Guild": ctx.guild.id}},
                 {"$group": {"_id": "$ModeratorID", "mod_count": {"$sum": 1}}},
@@ -1394,14 +1390,22 @@ class ShiftLogging(commands.Cog):
         total_seconds = 0
         display_index = 0
         value = ""
+        await msg.edit(content="<a:Loading:1044067865453670441> **Loading...** (chunking)")
+        time1 = datetime.datetime.now()
+        if not ctx.guild.chunked:
+            members = await ctx.guild.chunk(cache=True)
+        else:
+            members = ctx.guild.members # mikey and i made a discovery
+        time2 = datetime.datetime.now()
+        t = time2 - time1
+        await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (chunking took {t.total_seconds()})")
         for i in sorted_staff:
             try:
-                member = ctx.guild.get_member(i["id"])
-                if not member:
-                    member = await ctx.guild.fetch_member(i["id"])
+                member = [m for m in members if i["id"] == m.id][0]
+                
                 member_name = member.name
                 member_id = member.id
-            except discord.NotFound:
+            except IndexError:
                 member_name, member_id = i["id"], i["id"]
         
             if member_id == ctx.author.id:
@@ -1458,7 +1462,8 @@ class ShiftLogging(commands.Cog):
 
         if len(containers) == 1:
             container = containers[0]
-            await container.add_item(discord.ui.TextDisplay(value))
+            container.add_item(discord.ui.TextDisplay(value))
+            row = None
             if await management_predicate(ctx):
                 row = RequestGoogleSpreadsheet(
                     self.bot,
@@ -1477,7 +1482,7 @@ class ShiftLogging(commands.Cog):
                 )
                 await interaction.response.send_message(file=file, ephemeral=True)
             view = discord.ui.LayoutView()
-            view.add_item(container)
+
             if row:
                 row.action_row.add_item(
                     CustomExecutionButton(
@@ -1488,8 +1493,8 @@ class ShiftLogging(commands.Cog):
                         func=response_func,
                     )
                 )
-                view.add_item(row)
-
+                container.add_item(row.action_row)
+            view.add_item(container)
             await msg.edit(
                 content=None,
                 embed=None,
@@ -1516,7 +1521,7 @@ class ShiftLogging(commands.Cog):
                     fp=BytesIO(bbytes), filename="shift_leaderboard.txt"
                 )
                 await interaction.response.send_message(file=file, ephemeral=True)
-
+            view = discord.ui.LayoutView()
             if row:
                 row.action_row.add_item(
                     CustomExecutionButton(
@@ -1527,7 +1532,7 @@ class ShiftLogging(commands.Cog):
                         func=response_func,
                     )
                 )
-            view = discord.ui.LayoutView().add_item(row)
+                view.add_item(row)
             pages = [
                 CustomPageV2(containers=[container], view=view, identifier=str(index + 1))
                 for index, container in enumerate(containers)
