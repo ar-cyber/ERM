@@ -1317,9 +1317,6 @@ class ShiftLogging(commands.Cog):
             pipeline[0]["$match"]["Type"] = shift_type["name"]
         docs =  [doc async for doc in await self.bot.shift_management.shifts.db.aggregate(pipeline)]
         for doc in docs:
-            if len(all_staff) % 150 == 0:
-                await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (calculated {len(all_staff)} results)")
-
             all_staff[doc["_id"]] = {
                 "id": doc["_id"],
                 "total_seconds": max(doc.get("total_seconds", 0), 0),
@@ -1340,7 +1337,32 @@ class ShiftLogging(commands.Cog):
             async for doc in await bot.punishments.db.aggregate(mod_pipeline):
                 if doc["_id"] in all_staff:
                     all_staff[doc["_id"]]["moderations"] = doc["mod_count"]
+        staff_roles = []
+        if configItem["staff_management"].get("role"):
+            if isinstance(configItem["staff_management"]["role"], int):
+                staff_roles.append(configItem["staff_management"]["role"])
+            elif isinstance(configItem["staff_management"]["role"], list):
+                staff_roles.extend(configItem["staff_management"]["role"])
 
+        if configItem["staff_management"].get("management_role"):
+            if isinstance(configItem["staff_management"]["management_role"], int):
+                staff_roles.append(configItem["staff_management"]["management_role"])
+            elif isinstance(configItem["staff_management"]["management_role"], list):
+                staff_roles.extend(configItem["staff_management"]["management_role"])
+
+        staff_roles = [ctx.guild.get_role(role) for role in staff_roles if role]
+
+        added_staff = []
+        for role in staff_roles:
+            for member in role.members:
+                if member.id not in all_staff and member not in added_staff:
+                    all_staff[member.id] = {
+                        "id": member.id,
+                        "total_seconds": 0,
+                        "moderations": 0,
+                        "lowest_time": None,
+                    }
+                    added_staff.append(member)
         if len(all_staff) == 0:
             return await ctx.send(
                 embed=discord.Embed(
@@ -1398,7 +1420,7 @@ class ShiftLogging(commands.Cog):
             members = ctx.guild.members # mikey and i made a discovery
         time2 = datetime.datetime.now()
         t = time2 - time1
-        await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (chunking took {t.total_seconds()})")
+        await msg.edit(content=f"<a:Loading:1044067865453670441> **Loading...** (chunking took {int(t.total_seconds()) if int(t.total_seconds()) > 1 else "less than a second"})")
         for i in sorted_staff:
             try:
                 member = [m for m in members if i["id"] == m.id][0]

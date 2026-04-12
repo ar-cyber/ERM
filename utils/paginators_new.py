@@ -6,7 +6,7 @@ import reactionmenu
 import typing
 from ui.Selects import CustomDropdown
 from utils.constants import BLANK_COLOR
-from utils.utils import generalised_interaction_check_failure
+from utils.utils import generalised_interaction_check_failure, chunk_list
 
 
 class CustomPage:
@@ -141,33 +141,67 @@ class SelectPagination(discord.ui.LayoutView):
         await self._paginate(interaction, -1, "increment")
 
     async def _set_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Not Permitted",
+                    description="You are not permitted to interact with these buttons.",
+                    color=BLANK_COLOR,
+                ),
+                ephemeral=True,
+            )
         await interaction.response.defer(ephemeral=True, thinking=True)
-
         cont = discord.ui.Container()
         cont.add_item(
             discord.ui.TextDisplay(
-                "### Change the Page\nWhat page would you like to go to?"
+                (
+                    "### Change the Page\n"
+                    "What page would you like to go to?"
+                )
             )
         ).add_item(
             discord.ui.Separator()
-        ).add_item(
-            discord.ui.ActionRow(
-                CustomDropdown(
-                    self.user_id,
-                    [
-                        discord.SelectOption(label=page.identifier, value=str(index))
-                        for index, page in enumerate(self.pages)
-                    ],
+        )
+        containers: list[discord.ui.Container] = []
+        containers.append(cont)
+        indexed_pages = list(enumerate(self.pages))
+        page_chunks = list(chunk_list(indexed_pages, 25))  # 25 options per select
+
+        for container_index in range(4):  # max 4 containers
+            if not page_chunks:
+                break
+
+            container = discord.ui.Container()
+
+            for _ in range(5):  # max 5 selects per container
+                if not page_chunks:
+                    break
+
+                chunk = page_chunks.pop(0)
+
+                options = [
+                    discord.SelectOption(label=page.identifier, value=str(index))
+                    for index, page in chunk
+                ]
+
+                container.add_item(
+                    discord.ui.ActionRow(
+                        CustomDropdown(self.user_id, options)
+                    )
                 )
-            )
-        )
 
+            containers.append(container)
+            
+        view = discord.ui.LayoutView()
+        for container in containers:
+            view.add_item(container)
         msg = await interaction.followup.send(
-            view=(jump_view := discord.ui.LayoutView().add_item(cont))
-        )
-        await jump_view.wait()
+            embed=None,
+            view=view)
+        
 
-        index = int(jump_view.value or "1000")
+        await view.wait()
+        index = int(view.value or "1000")
         await msg.delete()
         if index != 1000:
             await self._paginate(interaction, index, "set")
