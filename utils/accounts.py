@@ -9,7 +9,7 @@ class Accounts:
         roblox_users = await self.bot.roblox.get_users_by_usernames(usernames, expand=False)
         return [user.id for user in roblox_users if user]
 
-    async def roblox_to_discord(self, guild: discord.Guild, username: str, roles: list[int] = None, roblox_user_id=None):
+    async def roblox_to_discord(self, guild: discord.Guild, username: str, roles: list[int] | None = None, roblox_user_id=None):
         bot = self.bot
 
         # oauth2_users
@@ -28,6 +28,7 @@ class Accounts:
                     return await guild.fetch_member(int(linked_account["discord_id"] or 0))
                 except discord.NotFound:
                     pass
+        
 
         # query members
         members = await guild.query_members(username)
@@ -39,6 +40,11 @@ class Accounts:
                 if any(role.id in roles for role in member.roles):
                     return member
         
+        # Android note: I've updated the bloxlink stuff to allow for reverse checking
+        if not members:
+            member = await self.bot.bloxlink.find_discord(roblox_id, guild.id)
+            members = [discord.utils.get(guild.members, id=member)]
+
         # if no roles specified OR no member with roles, return the first member found
         return members[0] if members else None
 

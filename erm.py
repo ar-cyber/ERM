@@ -68,6 +68,8 @@ from utils.prc_api import ResponseFailure
 from utils.utils import *
 from utils.constants import *
 import utils.prc_api
+from utils.redis import ERMRedis
+from redis.asyncio import from_url
 
 from utils.help_command import HelpCommand
 
@@ -137,7 +139,7 @@ class Bot(commands.AutoShardedBot):
         # IDs are a security vulnerability.
 
         # Else fall back to the original
-        if user.id in [1482390498785366212]:
+        if user.id in [1482390498785366212, 993781395761676298]:
             return True
 
         if environment != "CUSTOM": # let's not allow custom bot owners to use jishaku lol
@@ -158,7 +160,7 @@ class Bot(commands.AutoShardedBot):
             )
             enable_components_v2_embed_bridge()
             self.mongo = AsyncMongoClient(str(mongo_url))
-
+            self.redis = ERMRedis(self, from_url(str(redis_url)))
             # The checking for this is defined just before the run method - approx line 649
             self.db = self.mongo[dbname]
 
@@ -224,7 +226,7 @@ class Bot(commands.AutoShardedBot):
             self.mc_api = MCApiClient(
                 self, base_url=config("MC_API_URL"), api_key=config("MC_API_KEY")
             )
-            self.bloxlink = Bloxlink(self, config("BLOXLINK_API_KEY"))
+            self.bloxlink = Bloxlink(self, config("BLOXLINK_API_KEY"), config("ROVER_API_KEY"))
 
             Extensions = [m.name for m in iter_modules(["cogs"], prefix="cogs.")]
             Events = [m.name for m in iter_modules(["events"], prefix="events.")]
@@ -595,10 +597,14 @@ if environment in accepted_envs:
         raise Exception("The environment specified does not have a token associated with it")
 else:
     raise Exception("Invalid Environment")
+
 # Mongo is critical for bot function so it should most definitely error 
 mongo_url = config("MONGO_URL", default=None)
 if not mongo_url:
     raise Exception("Missing MongoDB URL")
+
+# Redis is a required component
+redis_url = config("REDIS_URL", default="redis://localhost:6379")
 
 
 credentials_dict = {
@@ -633,6 +639,6 @@ def run():
             capture_exception(e)
         raise e
 
-
+# DO NOT RUN FROM ERM.PY OR CONNECTION ISSUES WILL OCCUR
 if __name__ == "__main__":
     run()
