@@ -13,6 +13,7 @@ class CustomPage:
     view: typing.Optional[discord.ui.LayoutView]
     identifier: typing.Optional[str]
     containers: list[discord.ui.Container]
+    aliases: list[str]
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
@@ -74,6 +75,15 @@ class SelectPagination(discord.ui.LayoutView):
     async def on_timeout(self):
         for child in self.nav_row.children:
             child.disabled = True
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        print(f"{self.user_id}, {type(self.user_id)}")
+        print(interaction.user.id)
+        if interaction.user.id != int(self.user_id):
+            await interaction.response.defer()
+            await generalised_interaction_check_failure(interaction.followup)
+            return False
+        else:
+            return True
     def _validate_page_items(self, page_view: discord.ui.LayoutView):
         for item in page_view.children:
             if getattr(item, "default", None) is not None:
@@ -215,11 +225,3 @@ class SelectPagination(discord.ui.LayoutView):
         await interaction.response.defer()
         await self._paginate(interaction, 0, "detach")
         
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.defer()
-            await generalised_interaction_check_failure(interaction.followup)
-            return False
-        else:
-            return True
